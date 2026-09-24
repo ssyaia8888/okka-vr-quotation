@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>編輯報價單 — {{ link.project_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background: #f8fafc; font-family: 'Microsoft JhengHei', sans-serif; }
+        .navbar { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); }
+        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .material-option { cursor: pointer; border: 2px solid transparent; border-radius: 8px; padding: 8px; transition: all 0.2s; }
+        .material-option:hover { border-color: #3b82f6; background: #eff6ff; }
+        .material-option.selected { border-color: #2563eb; background: #dbeafe; }
+        .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #e2e8f0; display: inline-block; }
+        .item-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+        .item-row:hover { border-color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand">
+                <a href="/" class="text-white text-decoration-none"><i class="bi bi-arrow-left"></i></a>
+                &nbsp;編輯報價單
+            </span>
+            <div>
+                <span class="text-white me-3">{{ link.project_name }}</span>
+                <span class="badge bg-warning text-dark">Token: {{ link.link_token }}</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <!-- Left: Edit Form -->
+            <div class="col-md-8">
+                <!-- Basic Info -->
+                <div class="card mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> 基本資料</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">項目名稱</label>
+                                <input type="text" class="form-control" id="projectName" value="{{ link.project_name }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">客戶姓名</label>
+                                <input type="text" class="form-control" id="customerName" value="{{ link.customer_name }}">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">電話</label>
+                                <input type="text" class="form-control" id="customerPhone" value="{{ link.customer_phone }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">有效期</label>
+                                <input type="date" class="form-control" id="validUntil" value="{{ link.valid_until }}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">地址</label>
+                            <input type="text" class="form-control" id="address" value="{{ link.address }}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Items -->
+                <div class="card mb-4">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-list-check"></i> 報價項目</h5>
+                        <button class="btn btn-primary btn-sm" onclick="showAddItemModal()">
+                            <i class="bi bi-plus-lg"></i> 新增項目
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="itemsList">
+                            {% for item in items %}
+                            <div class="item-row" data-id="{{ item.id }}">
+                                <div class="row align-items-center">
+                                    <div class="col-md-4">
+                                        <div class="fw-bold">{{ item.material_name }}</div>
+                                        <small class="text-muted">{{ item.area_name or '-' }}</small>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <input type="number" class="form-control form-control-sm" 
+                                               value="{{ item.quantity }}" min="0" step="0.1"
+                                               onchange="updateItemTotal(this, {{ item.unit_price }})">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <input type="number" class="form-control form-control-sm" 
+                                               value="{{ item.unit_price }}" min="0"
+                                               onchange="updateItemTotal(this, null, true)">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <span class="item-total fw-bold text-primary">${{ "{:,.0f}".format(item.total_price) }}</span>
+                                    </div>
+                                    <div class="col-md-2 text-end">
+                                        <button class="btn btn-outline-danger btn-sm" onclick="removeItem({{ item.id }})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% if not items %}
+                            <div class="text-center text-muted py-4">
+                                暫無項目，按「新增項目」加入
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Summary -->
+            <div class="col-md-4">
+                <div class="card mb-4 sticky-top" style="top: 80px;">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="bi bi-calculator"></i> 報價摘要</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>項目數量</span>
+                            <span id="itemCount">{{ items|length }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>總金額</span>
+                            <span class="fs-4 fw-bold text-primary" id="totalAmount">${{ "{:,.0f}".format(link.total_amount) }}</span>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>狀態</span>
+                            <span class="badge bg-{{ 'success' if link.status == 'confirmed' else 'warning' }}">
+                                {% if link.status == 'pending' %}待查看
+                                {% elif link.status == 'viewed' %}已查看
+                                {% elif link.status == 'confirmed' %}已確認
+                                {% else %}{{ link.status }}{% endif %}
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-3">
+                            <span>有效期至</span>
+                            <span>{{ link.valid_until }}</span>
+                        </div>
+                        <hr>
+                        <button class="btn btn-primary w-100 mb-2" onclick="saveChanges()">
+                            <i class="bi bi-check-lg"></i> 儲存修改
+                        </button>
+                        <button class="btn btn-success w-100 mb-2" onclick="confirmQuotation()">
+                            <i class="bi bi-check-circle"></i> 確認並同步 Odoo
+                        </button>
+                        <a href="/vr/{{ link.link_token }}" target="_blank" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="bi bi-eye"></i> 預覽 2D
+                        </a>
+                        <a href="/vr3d/{{ link.link_token }}" target="_blank" class="btn btn-outline-success w-100">
+                            <i class="bi bi-box"></i> 預覽 3D
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div class="modal fade" id="addItemModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新增項目</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">選擇物料 *</label>
+                        <select class="form-select" id="newMaterial" onchange="updateNewItemInfo()">
+                            <option value="">-- 選擇物料 --</option>
+                            {% for mat in materials %}
+                            <option value="{{ mat.id }}" 
+                                    data-name="{{ mat.name }}"
+                                    data-category="{{ mat.category }}"
+                                    data-price="{{ mat.unit_price }}"
+                                    data-unit="{{ mat.unit }}"
+                                    data-color="{{ mat.color_hex }}">
+                                {{ mat.name }} ({{ mat.category }}) - ${{ "{:,.0f}".format(mat.unit_price) }}/{{ mat.unit }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">區域名稱</label>
+                            <input type="text" class="form-control" id="newAreaName" placeholder="例：客廳地板">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">數量 *</label>
+                            <input type="number" class="form-control" id="newQuantity" min="0" step="0.1" value="1" onchange="updateNewItemTotal()">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">單價</label>
+                            <input type="number" class="form-control" id="newUnitPrice" min="0" onchange="updateNewItemTotal()">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>小計</span>
+                        <span class="fs-5 fw-bold text-primary" id="newItemTotal">$0</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="addNewItem()">加入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const QUOTATION_TOKEN = '{{ link.link_token }}';
+        const QUOTATION_ID = {{ link.id }};
+
+        function updateNewItemTotal() {
+            const qty = parseFloat(document.getElementById('newQuantity').value) || 0;
+            const price = parseFloat(document.getElementById('newUnitPrice').value) || 0;
+            document.getElementById('newItemTotal').textContent = '$' + Math.round(qty * price).toLocaleString();
+        }
+
+        function updateNewItemInfo() {
+            const select = document.getElementById('newMaterial');
+            const option = select.options[select.selectedIndex];
+            if (option.value) {
+                document.getElementById('newUnitPrice').value = option.dataset.price;
+                updateNewItemTotal();
+            }
+        }
+
+        function showAddItemModal() {
+            document.getElementById('newMaterial').value = '';
+            document.getElementById('newAreaName').value = '';
+            document.getElementById('newQuantity').value = '1';
+            document.getElementById('newUnitPrice').value = '';
+            document.getElementById('newItemTotal').textContent = '$0';
+            new bootstrap.Modal(document.getElementById('addItemModal')).show();
+        }
+
+        async function addNewItem() {
+            const materialSelect = document.getElementById('newMaterial');
+            const option = materialSelect.options[materialSelect.selectedIndex];
+            
+            if (!option.value) {
+                alert('請選擇物料');
+                return;
+            }
+
+            const data = {
+                material_id: parseInt(option.value),
+                material_name: option.dataset.name,
+                quantity: parseFloat(document.getElementById('newQuantity').value) || 0,
+                unit_price: parseFloat(document.getElementById('newUnitPrice').value) || 0,
+                area_name: document.getElementById('newAreaName').value
+            };
+
+            if (data.quantity <= 0) {
+                alert('數量必須大於 0');
+                return;
+            }
+
+            const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}/items`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert(result.detail || '加入失敗');
+            }
+        }
+
+        async function removeItem(itemId) {
+            if (!confirm('確定要刪除此項目？')) return;
+
+            const res = await fetch(`/api/quotation/item/${itemId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert(result.detail || '刪除失敗');
+            }
+        }
+
+        function updateItemTotal(input, unitPrice, isPriceChange) {
+            const row = input.closest('.item-row');
+            const qtyInput = row.querySelector('input[type="number"]:first-of-type');
+            const priceInput = row.querySelector('input[type="number"]:last-of-type');
+            
+            if (isPriceChange) {
+                // Price changed, update total
+                const qty = parseFloat(qtyInput.value) || 0;
+                const price = parseFloat(priceInput.value) || 0;
+                row.querySelector('.item-total').textContent = '$' + Math.round(qty * price).toLocaleString();
+            } else {
+                // Quantity changed
+                const qty = parseFloat(qtyInput.value) || 0;
+                const price = parseFloat(priceInput.value) || 0;
+                row.querySelector('.item-total').textContent = '$' + Math.round(qty * price).toLocaleString();
+            }
+        }
+
+        async function saveChanges() {
+            // Save basic info
+            const infoData = {
+                project_name: document.getElementById('projectName').value,
+                customer_name: document.getElementById('customerName').value,
+                customer_phone: document.getElementById('customerPhone').value,
+                address: document.getElementById('address').value,
+                valid_until: document.getElementById('validUntil').value
+            };
+
+            const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(infoData)
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                alert('儲存成功！');
+                location.reload();
+            } else {
+                alert(result.detail || '儲存失敗');
+            }
+        }
+
+        async function confirmQuotation() {
+            if (!confirm('確定要確認此報價單？將會同步到 Odoo ERP。')) return;
+
+            const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}/confirm`, {
+                method: 'POST'
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                alert('確認成功！Odoo 訂單: ' + (result.odoo_order_id || '已建立'));
+                location.reload();
+            } else {
+                alert(result.detail || '確認失敗');
+            }
+        }
+    </script>
+</body>
+</html>

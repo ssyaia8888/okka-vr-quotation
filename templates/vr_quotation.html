@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ link.project_name }} — OKKA 報價單</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .main-card {
+            max-width: 500px;
+            margin: 20px auto;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header-section {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header-section h1 { font-size: 1.5em; margin-bottom: 5px; }
+        .header-section .subtitle { opacity: 0.8; font-size: 0.9em; }
+        .logo { font-size: 2em; font-weight: bold; margin-bottom: 10px; }
+        .amount-display {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 15px 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.9em;
+        }
+        .content-section {
+            background: white;
+            padding: 20px;
+        }
+        .section-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #1e3a5f;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .area-group {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .area-name {
+            font-weight: bold;
+            color: #475569;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+        .material-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        .material-card:hover {
+            border-color: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37,99,235,0.15);
+        }
+        .material-color {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        .material-info {
+            display: inline-block;
+            vertical-align: middle;
+            width: calc(100% - 60px);
+        }
+        .material-name { font-weight: bold; color: #1e293b; }
+        .material-price { color: #64748b; font-size: 0.85em; }
+        .material-desc { color: #94a3b8; font-size: 0.8em; }
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .qty-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .qty-btn:hover { background: #f3f4f6; }
+        .qty-value {
+            font-weight: bold;
+            min-width: 60px;
+            text-align: center;
+        }
+        .summary-section {
+            background: #f8fafc;
+            padding: 20px;
+            border-top: 2px solid #e2e8f0;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+        .summary-total {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #1e3a5f;
+            border-top: 2px solid #1e3a5f;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        .action-section {
+            padding: 20px;
+            background: white;
+        }
+        .btn-whatsapp {
+            background: #25D366;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .btn-whatsapp:hover { background: #128C7E; color: white; }
+        .btn-confirm {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            width: 100%;
+        }
+        .btn-confirm:hover { color: white; }
+        .footer-note {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.8em;
+            padding: 15px;
+            background: white;
+        }
+        .category-selector {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+        .cat-btn {
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid #d1d5db;
+            background: white;
+            font-size: 0.8em;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .cat-btn:hover { background: #f3f4f6; }
+        .modal-content { border-radius: 16px; }
+        .confirm-success {
+            text-align: center;
+            padding: 40px;
+        }
+        .confirm-success i {
+            font-size: 4em;
+            color: #10b981;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-card">
+        <!-- Header -->
+        <div class="header-section">
+            <div class="logo">OKKA</div>
+            <div class="subtitle">室內設計及裝修工程</div>
+            <h1>{{ link.project_name }}</h1>
+            <div class="amount-display" id="totalAmount">${{ "{:,.0f}".format(link.total_amount) }}</div>
+            <div class="info-row">
+                <span><i class="bi bi-person"></i> {{ link.customer_name or '客戶' }}</span>
+                <span><i class="bi bi-calendar"></i> {{ link.valid_until }}</span>
+            </div>
+            <div class="info-row">
+                <span><i class="bi bi-geo-alt"></i> {{ link.address or '-' }}</span>
+                <span><i class="bi bi-clock"></i> 有效期至 {{ link.valid_until }}</span>
+            </div>
+            <div class="info-row">
+                <span><i class="bi bi-eye"></i> <span id="viewerCount">1</span> 人正在觀看</span>
+                <span id="connectionStatus" class="badge bg-success">即時同步中</span>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content-section">
+            <div class="section-title">
+                <i class="bi bi-palette"></i> 揀選物料
+            </div>
+
+            {% for item in items %}
+            <div class="area-group">
+                <div class="area-name">
+                    <i class="bi bi-house"></i> {{ item.area_name }}
+                </div>
+
+                <div class="material-card" id="item-{{ item.id }}" data-item-id="{{ item.id }}">
+                    <div class="material-color" style="background: {{ item.color_hex }};"></div>
+                    <div class="material-info">
+                        <div class="material-name">{{ item.material_name }}</div>
+                        <div class="material-price">${{ "{:,.0f}".format(item.unit_price) }} / {{ item.unit }}</div>
+                        <div class="material-desc">{{ item.material_desc }}</div>
+                    </div>
+                    <div class="quantity-control">
+                        <button class="qty-btn" onclick="changeQty({{ item.id }}, -1)">−</button>
+                        <span class="qty-value" id="qty-{{ item.id }}">{{ item.quantity }}</span>
+                        <button class="qty-btn" onclick="changeQty({{ item.id }}, 1)">+</button>
+                        <span class="text-muted small" style="margin-left: auto;">{{ item.unit }}</span>
+                    </div>
+                </div>
+
+                <!-- Alternative Materials for this category -->
+                {% if item.category in materials_by_category %}
+                <div class="mt-2">
+                    <small class="text-muted">換其他物料：</small>
+                    <div class="category-selector">
+                        {% for m in materials_by_category[item.category] %}
+                        <button class="cat-btn" onclick="switchMaterial({{ item.id }}, {{ m.id }}, '{{ m.name }}', {{ m.unit_price }}, '{{ m.color_hex }}', '{{ m.description }}', '{{ m.unit }}')">
+                            {{ m.name }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-section">
+            <div class="section-title">
+                <i class="bi bi-calculator"></i> 報價摘要
+            </div>
+            <div id="summaryItems">
+                {% for item in items %}
+                <div class="summary-row" id="summary-{{ item.id }}">
+                    <span>{{ item.area_name }} — {{ item.material_name }}</span>
+                    <span class="item-total" data-unit-price="{{ item.unit_price }}">
+                        ${{ "{:,.0f}".format(item.total_price) }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="summary-row summary-total">
+                <span>總計</span>
+                <span id="grandTotal">${{ "{:,.0f}".format(link.total_amount) }}</span>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="action-section">
+            <button class="btn btn-whatsapp" onclick="shareWhatsApp()">
+                <i class="bi bi-whatsapp"></i> WhatsApp 查詢
+            </button>
+            <button class="btn btn-confirm" onclick="confirmQuotation()">
+                <i class="bi bi-check-circle"></i> 確認報價單
+            </button>
+        </div>
+
+        <div class="footer-note">
+            OKKA 室內設計 | 此報價單由系統自動生成<br>
+            如有任何查詢，歡迎 WhatsApp 我們
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">確認報價單</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>請確認以下資料：</p>
+                    <div class="mb-3">
+                        <label class="form-label">您的稱呼</label>
+                        <input type="text" class="form-control" id="confirmName" value="{{ link.customer_name or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">聯絡電話</label>
+                        <input type="text" class="form-control" id="confirmPhone" value="{{ link.customer_phone or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">備註</label>
+                        <textarea class="form-control" id="confirmNotes" rows="3" placeholder="有什麼想告訴我們？"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">返回</button>
+                    <button type="button" class="btn btn-primary" onclick="submitConfirm()">確認</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="confirm-success">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <h3>報價單已確認！</h3>
+                    <p class="text-muted">我們會盡快與您聯絡</p>
+                    <button class="btn btn-primary mt-3" data-bs-dismiss="modal">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const linkToken = '{{ link_token }}';
+        const whatsappNumber = '85266923843';
+        const senderId = Math.random().toString(36).substr(2, 9);
+
+        // Store current item data
+        let itemData = {};
+        {% for item in items %}
+        itemData[{{ item.id }}] = {
+            materialId: {{ item.material_id }},
+            unitPrice: {{ item.unit_price }},
+            quantity: {{ item.quantity }},
+            areaName: '{{ item.area_name }}',
+            materialName: '{{ item.material_name }}',
+            unit: '{{ item.unit }}'
+        };
+        {% endfor %}
+
+        // ============================================================
+        // WebSocket Connection
+        // ============================================================
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/${linkToken}`);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                reconnectAttempts = 0;
+                updateConnectionStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                updateConnectionStatus(false);
+                // Reconnect with backoff
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    setTimeout(connectWebSocket, Math.pow(2, reconnectAttempts) * 1000);
+                    reconnectAttempts++;
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'viewer_count':
+                    document.getElementById('viewerCount').textContent = data.count;
+                    break;
+                case 'material_change':
+                    // Another viewer changed material
+                    if (data.sender_id !== senderId) {
+                        // Find item by category and update
+                        for (const id in itemData) {
+                            const item = itemData[id];
+                            // Update matching category items
+                            // Note: This is simplified - in production, track category per item
+                        }
+                    }
+                    break;
+                case 'quantity_change':
+                    // Another viewer changed quantity
+                    if (data.sender_id !== senderId) {
+                        const item = itemData[data.item_id];
+                        if (item) {
+                            item.quantity = data.quantity;
+                            document.getElementById(`qty-${data.item_id}`).textContent = data.quantity;
+                            updateGrandTotal();
+                        }
+                    }
+                    break;
+                case 'price_update':
+                    // Another viewer updated total
+                    if (data.sender_id !== senderId) {
+                        document.getElementById('grandTotal').textContent = `$${data.total.toLocaleString()}`;
+                        document.getElementById('totalAmount').textContent = `$${data.total.toLocaleString()}`;
+                    }
+                    break;
+                case 'pong':
+                    // Keepalive response
+                    break;
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionStatus');
+            if (indicator) {
+                indicator.className = connected ? 'badge bg-success' : 'badge bg-danger';
+                indicator.textContent = connected ? '即時同步中' : '離線';
+            }
+        }
+
+        function broadcastChange(type, data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: type,
+                    sender_id: senderId,
+                    ...data
+                }));
+            }
+        }
+
+        // Keepalive ping
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 30000);
+
+        // Connect on load
+        connectWebSocket();
+
+        function changeQty(itemId, delta) {
+            const item = itemData[itemId];
+            if (!item) return;
+
+            let newQty = item.quantity + delta;
+            if (newQty < 0) newQty = 0;
+
+            item.quantity = newQty;
+            document.getElementById(`qty-${itemId}`).textContent = newQty;
+
+            // Update summary
+            const summaryRow = document.getElementById(`summary-${itemId}`);
+            if (summaryRow) {
+                const total = item.unitPrice * newQty;
+                summaryRow.querySelector('.item-total').textContent = `$${total.toLocaleString()}`;
+            }
+
+            updateGrandTotal();
+            
+            // Broadcast via WebSocket
+            broadcastChange('quantity_change', {
+                item_id: itemId,
+                quantity: newQty
+            });
+        }
+
+        function switchMaterial(itemId, newMaterialId, newName, newPrice, newColor, newDesc, newUnit) {
+            const item = itemData[itemId];
+            if (!item) return;
+
+            item.materialId = newMaterialId;
+            item.unitPrice = newPrice;
+            item.materialName = newName;
+
+            // Update card display
+            const card = document.getElementById(`item-${itemId}`);
+            card.querySelector('.material-color').style.background = newColor;
+            card.querySelector('.material-name').textContent = newName;
+            card.querySelector('.material-price').textContent = `$${newPrice.toLocaleString()} / ${newUnit}`;
+            card.querySelector('.material-desc').textContent = newDesc;
+
+            // Update summary
+            const summaryRow = document.getElementById(`summary-${itemId}`);
+            if (summaryRow) {
+                const total = item.unitPrice * item.quantity;
+                summaryRow.querySelector('span:first-child').textContent = `${item.areaName} — ${item.materialName}`;
+                summaryRow.querySelector('.item-total').textContent = `$${total.toLocaleString()}`;
+            }
+
+            updateGrandTotal();
+            
+            // Broadcast via WebSocket
+            broadcastChange('material_change', {
+                category: newDesc.includes('地板') ? 'floor' : newDesc.includes('牆') ? 'wall' : 'other',
+                material_id: newMaterialId,
+                color: newColor,
+                price: newPrice
+            });
+        }
+
+        function updateGrandTotal() {
+            let total = 0;
+            for (const id in itemData) {
+                const item = itemData[id];
+                total += item.unitPrice * item.quantity;
+            }
+            document.getElementById('grandTotal').textContent = `$${total.toLocaleString()}`;
+            document.getElementById('totalAmount').textContent = `$${total.toLocaleString()}`;
+            
+            // Broadcast price update
+            broadcastChange('price_update', { total: total });
+        }
+
+        function shareWhatsApp() {
+            let msg = `*OKKA 報價單*\n\n`;
+            msg += `項目: ${document.querySelector('h1').textContent}\n`;
+            msg += `金額: ${document.getElementById('grandTotal').textContent}\n\n`;
+            msg += `報價單連結: ${window.location.href}\n\n`;
+            msg += `如有查詢，歡迎回覆！`;
+            
+            window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function confirmQuotation() {
+            new bootstrap.Modal(document.getElementById('confirmModal')).show();
+        }
+
+        async function submitConfirm() {
+            const data = {
+                customer_name: document.getElementById('confirmName').value,
+                customer_phone: document.getElementById('confirmPhone').value,
+                notes: document.getElementById('confirmNotes').value
+            };
+
+            const res = await fetch(`/api/quotation/${linkToken}/confirm`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+                new bootstrap.Modal(document.getElementById('successModal')).show();
+            }
+        }
+    </script>
+</body>
+</html>

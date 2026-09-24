@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>物料管理 — OKKA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background: #f8fafc; font-family: 'Microsoft JhengHei', sans-serif; }
+        .navbar { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); }
+        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .color-swatch { width: 30px; height: 30px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-block; }
+        .texture-thumb { width: 50px; height: 50px; border-radius: 6px; border: 1px solid #e2e8f0; object-fit: cover; background: #f0f0f0; }
+        .category-badge { font-size: 0.75em; }
+        .inactive { opacity: 0.5; }
+        .upload-zone { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-zone:hover { border-color: #2563eb; background: #f0f7ff; }
+        .upload-zone.dragover { border-color: #2563eb; background: #e0e7ff; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand">
+                <a href="/" class="text-white text-decoration-none"><i class="bi bi-arrow-left"></i></a>
+                &nbsp;物料管理
+            </span>
+            <button class="btn btn-light btn-sm" onclick="showCreateModal()">
+                <i class="bi bi-plus-lg"></i> 新增物料
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card p-3">
+                    <div class="text-muted small">總物料</div>
+                    <div class="fs-3 fw-bold">{{ materials|length }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card p-3">
+                    <div class="text-muted small">地板</div>
+                    <div class="fs-3 fw-bold">{{ materials|selectattr('category', 'equalto', 'floor')|list|length }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card p-3">
+                    <div class="text-muted small">牆身</div>
+                    <div class="fs-3 fw-bold">{{ materials|selectattr('category', 'equalto', 'wall')|list|length }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card p-3">
+                    <div class="text-muted small">天花/櫃體/燈具</div>
+                    <div class="fs-3 fw-bold">{{ materials|selectattr('category', 'in', ['ceiling', 'cabinet', 'lighting'])|list|length }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter -->
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="text-muted small">篩選：</span>
+                    </div>
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="filterCategory" onchange="filterTable()">
+                            <option value="">全部類別</option>
+                            <option value="floor">地板</option>
+                            <option value="wall">牆身</option>
+                            <option value="ceiling">天花</option>
+                            <option value="cabinet">櫃體</option>
+                            <option value="lighting">燈具</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <input type="text" class="form-control form-control-sm" id="filterSearch" placeholder="搜尋名稱..." oninput="filterTable()">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material List -->
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">物料列表</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0" id="materialTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:50px">貼圖</th>
+                            <th>顏色</th>
+                            <th>名稱</th>
+                            <th>型號</th>
+                            <th>品牌</th>
+                            <th>類別</th>
+                            <th>單位</th>
+                            <th>單價</th>
+                            <th>狀態</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in materials %}
+                        <tr class="mat-row {% if not m.is_active %}inactive{% endif %}" 
+                            data-category="{{ m.category }}" 
+                            data-name="{{ m.name|lower }}">
+                            <td>
+                                {% if m.texture_url %}
+                                <img src="{{ m.texture_url }}" class="texture-thumb" alt="貼圖">
+                                {% else %}
+                                <div class="texture-thumb d-flex align-items-center justify-content-center text-muted">
+                                    <i class="bi bi-image"></i>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td><span class="color-swatch" style="background: {{ m.color_hex }};"></span></td>
+                            <td class="fw-bold">{{ m.name }}</td>
+                            <td class="text-muted">{{ m.model_number or '-' }}</td>
+                            <td class="text-muted">{{ m.brand or '-' }}</td>
+                            <td>
+                                <span class="badge bg-secondary category-badge">
+                                    {% if m.category == 'floor' %}地板
+                                    {% elif m.category == 'wall' %}牆身
+                                    {% elif m.category == 'ceiling' %}天花
+                                    {% elif m.category == 'cabinet' %}櫃體
+                                    {% elif m.category == 'lighting' %}燈具
+                                    {% else %}{{ m.category }}{% endif %}
+                                </span>
+                            </td>
+                            <td>{{ m.unit }}</td>
+                            <td class="fw-bold">${{ "{:,.0f}".format(m.unit_price) }}</td>
+                            <td>
+                                {% if m.is_active %}
+                                <span class="badge bg-success">啟用</span>
+                                {% else %}
+                                <span class="badge bg-secondary">停用</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm" 
+                                        onclick='editMaterial({{ m|safe_tojson }})' title="編輯">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" 
+                                        onclick="deleteMaterial({{ m.id }})" title="停用">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not materials %}
+                        <tr>
+                            <td colspan="10" class="text-center text-muted py-4">暫無物料</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div class="modal fade" id="materialModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">新增物料</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="materialId">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">名稱 *</label>
+                                <input type="text" class="form-control" id="matName" placeholder="例：仿木紋磚 60x60">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">類別 *</label>
+                            <select class="form-select" id="matCategory">
+                                <option value="floor">地板</option>
+                                <option value="wall">牆身</option>
+                                <option value="ceiling">天花</option>
+                                <option value="cabinet">櫃體</option>
+                                <option value="lighting">燈具</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">型號</label>
+                            <input type="text" class="form-control" id="matModel" placeholder="例：QR-6060">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">品牌</label>
+                            <input type="text" class="form-control" id="matBrand" placeholder="例：東鵬">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">規格</label>
+                            <input type="text" class="form-control" id="matSpec" placeholder="例：600x600mm">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <input type="text" class="form-control" id="matDesc" placeholder="可選">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">顏色</label>
+                            <input type="color" class="form-control form-control-color" id="matColor" value="#cccccc">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">單位 *</label>
+                            <input type="text" class="form-control" id="matUnit" placeholder="sqm">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">單價 *</label>
+                            <input type="number" class="form-control" id="matPrice" placeholder="0" step="0.01">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">貼圖</label>
+                            <input type="file" class="form-control" id="matTexture" accept="image/*" onchange="previewTexture(this)">
+                        </div>
+                    </div>
+                    <!-- Texture Preview -->
+                    <div class="mb-3" id="texturePreviewArea" style="display:none">
+                        <label class="form-label">貼圖預覽</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <img id="texturePreview" src="" style="max-height:80px; border-radius:6px; border:1px solid #e2e8f0;">
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearTexture()">
+                                <i class="bi bi-x"></i> 移除
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Existing Texture -->
+                    <div class="mb-3" id="existingTextureArea" style="display:none">
+                        <label class="form-label">現有貼圖</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <img id="existingTexture" src="" style="max-height:80px; border-radius:6px; border:1px solid #e2e8f0;">
+                            <span class="text-muted small">（上傳新圖會覆蓋）</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveMaterial()">
+                        <i class="bi bi-check-lg"></i> 儲存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let editingId = null;
+        let textureFile = null;
+        let clearTextureFlag = false;
+
+        function filterTable() {
+            const cat = document.getElementById('filterCategory').value;
+            const search = document.getElementById('filterSearch').value.toLowerCase();
+            document.querySelectorAll('.mat-row').forEach(row => {
+                const matchCat = !cat || row.dataset.category === cat;
+                const matchSearch = !search || row.dataset.name.includes(search);
+                row.style.display = (matchCat && matchSearch) ? '' : 'none';
+            });
+        }
+
+        function showCreateModal() {
+            editingId = null;
+            textureFile = null;
+            clearTextureFlag = false;
+            document.getElementById('modalTitle').textContent = '新增物料';
+            document.getElementById('materialId').value = '';
+            document.getElementById('matName').value = '';
+            document.getElementById('matCategory').value = 'floor';
+            document.getElementById('matModel').value = '';
+            document.getElementById('matBrand').value = '';
+            document.getElementById('matSpec').value = '';
+            document.getElementById('matDesc').value = '';
+            document.getElementById('matColor').value = '#cccccc';
+            document.getElementById('matUnit').value = 'sqm';
+            document.getElementById('matPrice').value = '';
+            document.getElementById('matTexture').value = '';
+            document.getElementById('texturePreviewArea').style.display = 'none';
+            document.getElementById('existingTextureArea').style.display = 'none';
+            new bootstrap.Modal(document.getElementById('materialModal')).show();
+        }
+
+        function editMaterial(m) {
+            editingId = m.id;
+            textureFile = null;
+            clearTextureFlag = false;
+            document.getElementById('modalTitle').textContent = '編輯物料';
+            document.getElementById('materialId').value = m.id;
+            document.getElementById('matName').value = m.name;
+            document.getElementById('matCategory').value = m.category;
+            document.getElementById('matModel').value = m.model_number || '';
+            document.getElementById('matBrand').value = m.brand || '';
+            document.getElementById('matSpec').value = m.spec || '';
+            document.getElementById('matDesc').value = m.description || '';
+            document.getElementById('matColor').value = m.color_hex || '#cccccc';
+            document.getElementById('matUnit').value = m.unit;
+            document.getElementById('matPrice').value = m.unit_price;
+            document.getElementById('matTexture').value = '';
+            document.getElementById('texturePreviewArea').style.display = 'none';
+            
+            if (m.texture_url) {
+                document.getElementById('existingTexture').src = m.texture_url;
+                document.getElementById('existingTextureArea').style.display = 'block';
+            } else {
+                document.getElementById('existingTextureArea').style.display = 'none';
+            }
+            
+            new bootstrap.Modal(document.getElementById('materialModal')).show();
+        }
+
+        function previewTexture(input) {
+            if (input.files && input.files[0]) {
+                textureFile = input.files[0];
+                clearTextureFlag = false;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('texturePreview').src = e.target.result;
+                    document.getElementById('texturePreviewArea').style.display = 'block';
+                    document.getElementById('existingTextureArea').style.display = 'none';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function clearTexture() {
+            clearTextureFlag = true;
+            textureFile = null;
+            document.getElementById('matTexture').value = '';
+            document.getElementById('texturePreviewArea').style.display = 'none';
+        }
+
+        async function saveMaterial() {
+            const data = {
+                name: document.getElementById('matName').value,
+                category: document.getElementById('matCategory').value,
+                model_number: document.getElementById('matModel').value,
+                brand: document.getElementById('matBrand').value,
+                spec: document.getElementById('matSpec').value,
+                description: document.getElementById('matDesc').value,
+                color_hex: document.getElementById('matColor').value,
+                unit: document.getElementById('matUnit').value,
+                unit_price: parseFloat(document.getElementById('matPrice').value) || 0,
+                is_active: true
+            };
+
+            if (!data.name || !data.unit_price) {
+                alert('請填寫名稱和單價');
+                return;
+            }
+
+            let url, method;
+            if (editingId) {
+                url = `/api/materials/${editingId}`;
+                method = 'PUT';
+            } else {
+                url = '/api/materials/create';
+                method = 'POST';
+            }
+
+            const res = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                // Upload texture if selected
+                const matId = editingId || result.id;
+                if (textureFile && matId) {
+                    const formData = new FormData();
+                    formData.append('file', textureFile);
+                    await fetch(`/api/materials/${matId}/texture`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                }
+                if (clearTextureFlag && editingId) {
+                    await fetch(`/api/materials/${editingId}/texture`, {
+                        method: 'DELETE'
+                    });
+                }
+                location.reload();
+            } else {
+                alert(result.detail || '儲存失敗');
+            }
+        }
+
+        async function deleteMaterial(id) {
+            if (!confirm('確定要停用此物料？')) return;
+            
+            const res = await fetch(`/api/materials/${id}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (result.success) location.reload();
+        }
+    </script>
+</body>
+</html>
