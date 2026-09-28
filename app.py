@@ -91,6 +91,53 @@ os.makedirs(os.path.join(STATIC_DIR, "img"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
 
+# PWA: 將 manifest + service worker 註冊注入到所有 HTML 頁面
+PWA_SNIPPET = '''
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#16213e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<link rel="stylesheet" href="/static/css/mobile.css">
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/static/sw.js').then(function(reg) {
+      console.log('PWA service worker registered:', reg.scope);
+    }).catch(function(err) {
+      console.log('PWA service worker registration failed:', err);
+    });
+  });
+}
+</script>
+'''
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+class PWAMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        content_type = response.headers.get('content-type', '')
+        if content_type.startswith('text/html'):
+            # 收集完整 body
+            chunks = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk if isinstance(chunk, bytes) else chunk.encode())
+            body = b''.join(chunks)
+            # 注入到 </head> 之前
+            if b'</head>' in body:
+                body = body.replace(b'</head>', PWA_SNIPPET.encode() + b'</head>', 1)
+            return Response(
+                content=body,
+                status_code=response.status_code,
+                headers={k: v for k, v in response.headers.items() if k.lower() not in ('content-length', 'transfer-encoding')},
+                media_type=content_type.split(';')[0]
+            )
+        return response
+
+app.add_middleware(PWAMiddleware)
+
 # Custom Jinja2 filter for JSON serialization (handles Decimal, datetime)
 import json
 from decimal import Decimal
@@ -118,9 +165,19 @@ if DATABASE_URL:
     # Railway / Cloud PostgreSQL (uses DATABASE_URL environment variable)
     DB_CONFIG = DATABASE_URL
 else:
-    # Local Docker PostgreSQL
+    # Local Docker PostgreSQL — auto-detect container IP (survives IP drift)
+    import subprocess, json as _json
+    def _detect_db_host():
+        try:
+            out = subprocess.check_output(['docker','inspect','-f','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}','genius_erp_db'], timeout=5)
+            ip = out.decode().strip()
+            if ip:
+                return ip
+        except Exception:
+            pass
+        return "172.20.0.2"  # fallback
     DB_CONFIG = {
-        "host": "172.20.0.2",  # Docker network IP for genius_erp_db
+        "host": _detect_db_host(),  # auto-detected Docker network IP for genius_erp_db
         "port": 5432,
         "database": "genius",
         "user": "genius_user",

@@ -1,0 +1,169 @@
+/* OKKA VR Quotation - Mobile 專用 CSS */
+
+/* 基礎 mobile 適配 */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    overscroll-behavior: none; /* 防止 iOS 橡皮筋效果 */
+  }
+
+  /* 觸控優化: 增大點擊區域 */
+  button, a, input, select {
+    min-height: 44px; /* Apple 建議最小觸控尺寸 */
+    min-width: 44px;
+  }
+
+  /* 隱藏桌面專用元素 */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* 3D 視口全屏 */
+  #threejs-container, .threejs-container {
+    width: 100vw !important;
+    height: 60vh !important;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* 物料卡片橫向滾動 */
+  .materials-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    padding: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .material-card {
+    flex: 0 0 auto;
+    width: 140px;
+    scroll-snap-align: start;
+  }
+
+  /* 報價單底部固定 */
+  .quotation-summary {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(22, 33, 62, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 15px;
+    z-index: 100;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .quotation-summary .total {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #4ecca3;
+  }
+
+  /* 確認按鈕全屏寬 */
+  .confirm-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4ecca3, #3a9d82);
+    color: #1a1a2e;
+    font-weight: bold;
+    border: none;
+  }
+
+  /* 安全區域 (iPhone notch) */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+}
+
+/* 小手機 (< 400px) */
+@media (max-width: 400px) {
+  html {
+    font-size: 13px;
+  }
+
+  .material-card {
+    width: 120px;
+  }
+
+  .quotation-summary .total {
+    font-size: 1.3rem;
+  }
+}
+
+/* 平板 (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .materials-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 觸控設備通用 */
+@media (hover: none) and (pointer: coarse) {
+  /* 移除 hover 效果，改用 active */
+  button:hover, a:hover {
+    transform: none;
+  }
+
+  button:active, a:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+  }
+}
+
+/* 橫向模式優化 */
+@media (orientation: landscape) and (max-height: 500px) {
+  #threejs-container, .threejs-container {
+    height: 50vh !important;
+  }
+
+  .quotation-summary {
+    padding: 10px;
+  }
+}
+
+/* PWA 安裝提示 */
+.pwa-install-hint {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(78, 204, 163, 0.95);
+  color: #1a1a2e;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: bold;
+  z-index: 200;
+  animation: pulse 2s infinite;
+  display: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* 加載動畫 */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: #4ecca3;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
