@@ -1197,6 +1197,111 @@ async def sync_to_sheets():
         return {"error": str(e)}
 
 # ============================================================
+# Google Drive Texture Sync
+# ============================================================
+
+def get_drive_service():
+    """Get authorized Google Drive service."""
+    from google.oauth2.service_account import Credentials
+    from googleapiclient.discovery import build
+    key_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_KEY', '')
+    if not key_json:
+        return None
+    try:
+        creds = Credentials.from_service_account_info(
+            json.loads(key_json),
+            scopes=[
+                'https://www.googleapis.com/auth/drive.readonly',
+                'https://www.googleapis.com/auth/drive.file',
+            ]
+        )
+        return build('drive', 'v3', credentials=creds)
+    except Exception as e:
+        logger.error(f"Drive service init failed: {e}")
+        return None
+
+@app.post("/api/sync-from-drive")
+async def sync_from_drive():
+    """Sync texture images from Google Drive folder to materials DB."""
+    FOLDER_ID = os.environ.get('GOOGLE_DRIVE_FOLDER_ID', '')
+    if not FOLDER_ID:
+        return {"error": "GOOGLE_DRIVE_FOLDER_ID not configured"}
+    service = get_drive_service()
+    if not service:
+        return {"error": "Google Drive credentials not configured"}
+    try:
+        import io
+        # List files in Drive folder
+        files = []
+        page_token = None
+        while True:
+            response = service.files().list(
+                q=f"'{FOLDER_ID}' in parents and trashed = false",
+                fields="nextPageToken, files(id, name, mimeType, md5Checksum, modifiedTime, size)",
+                pageSize=100,
+                pageToken=page_token
+            ).execute()
+            files.extend(response.get('files', []))
+            page_token = response.get('nextPageToken')
+            if not page_token:
+                break
+        
+        conn = get_db()
+        updated = 0
+        errors = []
+        with conn.cursor() as cur:
+            for f in files:
+                name = f['name']
+                mime = f.get('mimeType', '')
+                if mime not in ('image/jpeg', 'image/png', 'image/webp'):
+                    ext = os.path.splitext(name)[1].lower()
+                    mime_map = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
+                    if ext not in mime_map:
+                        continue
+                    mime = mime_map[ext]
+                
+                # Extract material ID from filename: {id}_{name}.ext or {id}.ext
+                base = os.path.splitext(name)[0]
+                mat_id = None
+                for part in base.split('_'):
+                    if part.isdigit():
+                        mat_id = int(part)
+                        break
+                if mat_id is None:
+                    continue
+                
+                cur.execute("SELECT id FROM vr_materials WHERE id = %s", (mat_id,))
+                if not cur.fetchone():
+                    continue
+                
+                # Download file
+                request = service.files().get_media(fileId=f['id'])
+                chunk = io.BytesIO()
+                while True:
+                    data = request.next_chunk()
+                    chunk.write(data.get_data())
+                    if data is None:
+                        break
+                
+                content = chunk.getvalue()
+                if not content:
+                    continue
+                
+                import base64
+                data_url = f"data:{mime};base64,{base64.b64encode(content).decode('utf-8')}"
+                
+                cur.execute(
+                    "UPDATE vr_materials SET texture_url = %s, updated_at = NOW() WHERE id = %s",
+                    (data_url, mat_id)
+                )
+                updated += 1
+            conn.commit()
+        conn.close()
+        return {"scanned": len(files), "updated": updated, "errors": errors}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================================
 # Run Server
 # ============================================================
 
