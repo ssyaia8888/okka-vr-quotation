@@ -194,7 +194,8 @@
                                     data-category="{{ mat.category }}"
                                     data-price="{{ mat.unit_price }}"
                                     data-unit="{{ mat.unit }}"
-                                    data-color="{{ mat.color_hex }}">
+                                    data-color="{{ mat.color_hex }}"
+                                    data-formula="{{ mat.formula or '' }}">
                                 {{ mat.name }} ({{ mat.category }}) - ${{ "{:,.0f}".format(mat.unit_price) }}/{{ mat.unit }}
                             </option>
                             {% endfor %}
@@ -212,6 +213,20 @@
                         <div class="col-md-4 mb-3">
                             <label class="form-label">單價</label>
                             <input type="number" class="form-control" id="newUnitPrice" min="0" onchange="updateNewItemTotal()">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">長 cm（公式）</label>
+                            <input type="number" class="form-control" id="newLength" min="0" step="0.1" onchange="applyFormula()" placeholder="物料有公式先使填">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">闊 cm（公式）</label>
+                            <input type="number" class="form-control" id="newWidth" min="0" step="0.1" onchange="applyFormula()" placeholder="自動計數">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">公式</label>
+                            <input type="text" class="form-control" id="newFormulaDisplay" readonly placeholder="物料冇公式（手動輸入數量）">
                         </div>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
@@ -243,7 +258,29 @@
             const option = select.options[select.selectedIndex];
             if (option.value) {
                 document.getElementById('newUnitPrice').value = option.dataset.price;
+                const f = option.dataset.formula || '';
+                const disp = document.getElementById('newFormulaDisplay');
+                if (disp) disp.value = f || '';
+                applyFormula();
                 updateNewItemTotal();
+            }
+        }
+
+        function applyFormula() {
+            // 公式引擎：L/W 自動計數量（只准 LWH/數字/+-*/() ）
+            const select = document.getElementById('newMaterial');
+            const option = select.options[select.selectedIndex];
+            const f = (option && option.dataset.formula) ? option.dataset.formula.toUpperCase().replace(/×/g,'*').replace(/÷/g,'/') : '';
+            const L = parseFloat(document.getElementById('newLength').value) || 0;
+            const W = parseFloat(document.getElementById('newWidth').value) || 0;
+            if (f && /^[LWH0-9.+\-*/() ]+$/.test(f) && (L || W)) {
+                try {
+                    const qty = Function('L','W','H', 'return (' + f + ')')(L, W, 0);
+                    if (qty > 0) {
+                        document.getElementById('newQuantity').value = Math.round(qty * 100) / 100;
+                        updateNewItemTotal();
+                    }
+                } catch (e) {}
             }
         }
 
@@ -271,6 +308,8 @@
                 quantity: parseFloat(document.getElementById('newQuantity').value) || 0,
                 unit_price: parseFloat(document.getElementById('newUnitPrice').value) || 0,
                 unit_cost: document.getElementById('newUnitCost') ? (parseFloat(document.getElementById('newUnitCost').value) || null) : null,
+                length_cm: parseFloat(document.getElementById('newLength').value) || null,
+                width_cm: parseFloat(document.getElementById('newWidth').value) || null,
                 area_name: document.getElementById('newAreaName').value
             };
 

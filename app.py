@@ -287,6 +287,9 @@ def init_db():
             "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS total_cost DECIMAL(12,2) DEFAULT 0",
             "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS total_profit DECIMAL(12,2) DEFAULT 0",
             "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,2) DEFAULT 0",
+            "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS formula VARCHAR(100)",
+            "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS length_cm DECIMAL(10,2)",
+            "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS width_cm DECIMAL(10,2)",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -500,6 +503,24 @@ class MaterialUpdate(BaseModel):
     material_id: int
     quantity: float = 1
     unit_cost: Optional[float] = None  # 成本（ECST 紀律：必填）
+    length_cm: Optional[float] = None  # 長（公式引擎）
+    width_cm: Optional[float] = None   # 闊（公式引擎）
+    height_cm: Optional[float] = None  # 高（公式引擎）
+
+
+def _eval_formula(formula: str, l, w, h):
+    """安全公式計算 — 只准 L/W/H/數字/+-*/()  （長×闊×單價 引擎）"""
+    import re
+    if not formula:
+        return None
+    expr = formula.upper().replace("×", "*").replace("÷", "/")
+    if not re.fullmatch(r"[LWH0-9\.\+\-\*/\(\) ]+", expr):
+        return None
+    try:
+        val = eval(expr, {"__builtins__": {}}, {"L": l or 0, "W": w or 0, "H": h or 0})
+        return float(val) if val and val > 0 else None
+    except Exception:
+        return None
 
 class QuotationUpdate(BaseModel):
     items: List[MaterialUpdate]
@@ -786,6 +807,59 @@ async def get_materials(category: Optional[str] = None):
         )
     return {"materials": [dict(m) for m in materials]}
 
+@app.post("/api/quotation/{link_token}/items")
+async def add_quotation_item(link_token: str, request: Request):
+    """加單項（修復 2026-10-07：原本冇呢條 route，UI 加項目一直 404）+ 公式引擎 + 成本紀律"""
+    body = await request.json()
+    link = query_db("SELECT id FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    link_id = link[0]["id"]
+
+    material = query_db(
+        "SELECT id, name, unit_price, unit_cost, formula FROM vr_materials WHERE id = %s",
+        (body.get("material_id"),))
+    if not material:
+        raise HTTPException(status_code=404, detail="物料不存在")
+    mat = material[0]
+
+    unit_cost = body.get("unit_cost")
+    if unit_cost is None and not mat["unit_cost"]:
+        raise HTTPException(status_code=400, detail={
+            "error": "成本必填：物料未設定成本，唔畀加入（ECST 紀律）",
+            "materials": [mat["name"]]})
+    if unit_cost is None:
+        unit_cost = mat["unit_cost"]
+
+    quantity = float(body.get("quantity") or 1)
+    computed = _eval_formula(mat.get("formula") or "",
+                             body.get("length_cm"), body.get("width_cm"), body.get("height_cm"))
+    if computed is not None:
+        quantity = computed
+
+    unit_price = float(body.get("unit_price") or mat["unit_price"] or 0)
+    total_price = unit_price * quantity
+    query_db("""
+        INSERT INTO vr_quotation_items 
+        (quotation_link_id, material_id, quantity, unit_price, total_price, unit_cost, length_cm, width_cm, area_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (link_id, mat["id"], quantity, unit_price, total_price, unit_cost,
+          body.get("length_cm"), body.get("width_cm"), body.get("area_name")),
+        fetch=False)
+
+    # 全單總數重算
+    agg = query_db("""
+        SELECT COALESCE(SUM(total_price),0) AS t,
+               COALESCE(SUM(unit_cost * quantity),0) AS c
+        FROM vr_quotation_items WHERE quotation_link_id = %s""", (link_id,))
+    tot, cost = float(agg[0]["t"]), float(agg[0]["c"])
+    query_db(
+        "UPDATE vr_quotation_links SET total_amount = %s, total_cost = %s, total_profit = %s WHERE id = %s",
+        (tot, cost, tot - cost, link_id), fetch=False)
+    return {"success": True, "quantity": quantity, "total_price": total_price,
+            "formula_applied": computed is not None}
+
+
 @app.post("/api/quotation/{link_token}/update")
 async def update_quotation(link_token: str, update: QuotationUpdate):
     """Update quotation items"""
@@ -811,7 +885,7 @@ async def update_quotation(link_token: str, update: QuotationUpdate):
     missing_cost = []
     for item in update.items:
         material = query_db(
-            "SELECT unit_price, unit_cost, name FROM vr_materials WHERE id = %s",
+            "SELECT unit_price, unit_cost, name, formula FROM vr_materials WHERE id = %s",
             (item.material_id,)
         )
         if material:
@@ -822,13 +896,21 @@ async def update_quotation(link_token: str, update: QuotationUpdate):
                 missing_cost.append(material[0]["name"])
                 continue
             total_price = unit_price * item.quantity
+            # 公式引擎：有 L/W/H + 物料 formula → 數量自動計（長×闊×單價）
+            quantity = item.quantity
+            computed = _eval_formula(material[0].get("formula") or "",
+                                     item.length_cm, item.width_cm, item.height_cm)
+            if computed is not None:
+                quantity = computed
+            total_price = unit_price * quantity
             total += total_price
-            total_cost += unit_cost * item.quantity
+            total_cost += unit_cost * quantity
             query_db("""
                 INSERT INTO vr_quotation_items 
-                (quotation_link_id, material_id, quantity, unit_price, total_price, unit_cost)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (link_id, item.material_id, item.quantity, unit_price, total_price, unit_cost),
+                (quotation_link_id, material_id, quantity, unit_price, total_price, unit_cost, length_cm, width_cm)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (link_id, item.material_id, quantity, unit_price, total_price, unit_cost,
+                  item.length_cm, item.width_cm),
                 fetch=False)
     if missing_cost:
         raise HTTPException(status_code=400, detail={
@@ -1015,6 +1097,8 @@ async def update_material(material_id: int, request: Request):
             model_number = COALESCE(%s, model_number),
             brand = COALESCE(%s, brand),
             spec = COALESCE(%s, spec),
+            formula = COALESCE(%s, formula),
+            unit_cost = COALESCE(%s, unit_cost),
             is_active = COALESCE(%s, is_active)
         WHERE id = %s
     """, (
@@ -1027,6 +1111,8 @@ async def update_material(material_id: int, request: Request):
         body.get('model_number'),
         body.get('brand'),
         body.get('spec'),
+        body.get('formula'),
+        body.get('unit_cost'),
         body.get('is_active'),
         material_id
     ), fetch=False)
