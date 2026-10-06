@@ -283,6 +283,10 @@ def init_db():
             "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS address TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS total_price DECIMAL(12,2) DEFAULT 0",
+            "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,2) DEFAULT 0",
+            "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS total_cost DECIMAL(12,2) DEFAULT 0",
+            "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS total_profit DECIMAL(12,2) DEFAULT 0",
+            "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,2) DEFAULT 0",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -495,6 +499,7 @@ def sync_to_chamber(quotation_data, items_data):
 class MaterialUpdate(BaseModel):
     material_id: int
     quantity: float = 1
+    unit_cost: Optional[float] = None  # 成本（ECST 紀律：必填）
 
 class QuotationUpdate(BaseModel):
     items: List[MaterialUpdate]
@@ -800,32 +805,48 @@ async def update_quotation(link_token: str, update: QuotationUpdate):
         fetch=False
     )
     
-    # Insert new items
+    # Insert new items（ECST 紀律：每行必須有成本先儲到）
     total = 0
+    total_cost = 0
+    missing_cost = []
     for item in update.items:
         material = query_db(
-            "SELECT unit_price FROM vr_materials WHERE id = %s",
+            "SELECT unit_price, unit_cost, name FROM vr_materials WHERE id = %s",
             (item.material_id,)
         )
         if material:
             unit_price = material[0]["unit_price"]
+            # 成本來源：行項目指定 → 物料成本
+            unit_cost = item.unit_cost if item.unit_cost is not None else (material[0]["unit_cost"] or 0)
+            if item.unit_cost is None and not material[0]["unit_cost"]:
+                missing_cost.append(material[0]["name"])
+                continue
             total_price = unit_price * item.quantity
             total += total_price
+            total_cost += unit_cost * item.quantity
             query_db("""
                 INSERT INTO vr_quotation_items 
-                (quotation_link_id, material_id, quantity, unit_price, total_price)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (link_id, item.material_id, item.quantity, unit_price, total_price),
+                (quotation_link_id, material_id, quantity, unit_price, total_price, unit_cost)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (link_id, item.material_id, item.quantity, unit_price, total_price, unit_cost),
                 fetch=False)
+    if missing_cost:
+        raise HTTPException(status_code=400, detail={
+            "error": "成本必填：以下物料未設定成本，唔畀開單（ECST 紀律）",
+            "materials": missing_cost
+        })
     
-    # Update total
+    # Update total + 成本/利潤
+    total_profit = total - total_cost
     query_db(
-        "UPDATE vr_quotation_links SET total_amount = %s WHERE id = %s",
-        (total, link_id),
+        "UPDATE vr_quotation_links SET total_amount = %s, total_cost = %s, total_profit = %s WHERE id = %s",
+        (total, total_cost, total_profit, link_id),
         fetch=False
     )
     
-    return {"success": True, "total_amount": total}
+    return {"success": True, "total_amount": total, "total_cost": total_cost,
+            "total_profit": total_profit,
+            "margin_pct": round(total_profit / total * 100, 1) if total else 0}
 
 @app.post("/api/quotation/{link_token}/confirm")
 async def confirm_quotation(link_token: str, confirm: QuotationConfirm):

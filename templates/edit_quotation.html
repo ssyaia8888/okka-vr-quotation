@@ -82,24 +82,34 @@
                             {% for item in items %}
                             <div class="item-row" data-id="{{ item.id }}">
                                 <div class="row align-items-center">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="fw-bold">{{ item.material_name }}</div>
                                         <small class="text-muted">{{ item.area_name or '-' }}</small>
                                     </div>
-                                    <div class="col-md-2">
-                                        <input type="number" class="form-control form-control-sm" 
+                                    <div class="col-md-1">
+                                        <input type="number" class="form-control form-control-sm item-qty" 
                                                value="{{ item.quantity }}" min="0" step="0.1"
                                                onchange="updateItemTotal(this, {{ item.unit_price }})">
                                     </div>
                                     <div class="col-md-2">
-                                        <input type="number" class="form-control form-control-sm" 
+                                        <input type="number" class="form-control form-control-sm item-price" 
                                                value="{{ item.unit_price }}" min="0"
                                                onchange="updateItemTotal(this, null, true)">
                                     </div>
                                     <div class="col-md-2">
+                                        <input type="number" class="form-control form-control-sm item-cost" 
+                                               value="{{ item.unit_cost or 0 }}" min="0" step="0.01" required
+                                               placeholder="成本必填" title="成本必填（ECST 紀律）"
+                                               onchange="updateItemMargin(this)">
+                                    </div>
+                                    <div class="col-md-2">
                                         <span class="item-total fw-bold text-primary">${{ "{:,.0f}".format(item.total_price) }}</span>
                                     </div>
-                                    <div class="col-md-2 text-end">
+                                    <div class="col-md-1">
+                                        {% set margin = ((item.total_price - (item.unit_cost or 0) * item.quantity) / item.total_price * 100) if item.total_price else 0 %}
+                                        <span class="item-margin badge {% if margin < 20 %}bg-danger{% elif margin < 40 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ "%.0f"|format(margin) }}%</span>
+                                    </div>
+                                    <div class="col-md-1 text-end">
                                         <button class="btn btn-outline-danger btn-sm" onclick="removeItem({{ item.id }})">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -260,6 +270,7 @@
                 material_name: option.dataset.name,
                 quantity: parseFloat(document.getElementById('newQuantity').value) || 0,
                 unit_price: parseFloat(document.getElementById('newUnitPrice').value) || 0,
+                unit_cost: document.getElementById('newUnitCost') ? (parseFloat(document.getElementById('newUnitCost').value) || null) : null,
                 area_name: document.getElementById('newAreaName').value
             };
 
@@ -299,19 +310,25 @@
 
         function updateItemTotal(input, unitPrice, isPriceChange) {
             const row = input.closest('.item-row');
-            const qtyInput = row.querySelector('input[type="number"]:first-of-type');
-            const priceInput = row.querySelector('input[type="number"]:last-of-type');
-            
-            if (isPriceChange) {
-                // Price changed, update total
-                const qty = parseFloat(qtyInput.value) || 0;
-                const price = parseFloat(priceInput.value) || 0;
-                row.querySelector('.item-total').textContent = '$' + Math.round(qty * price).toLocaleString();
-            } else {
-                // Quantity changed
-                const qty = parseFloat(qtyInput.value) || 0;
-                const price = parseFloat(priceInput.value) || 0;
-                row.querySelector('.item-total').textContent = '$' + Math.round(qty * price).toLocaleString();
+            const qtyInput = row.querySelector('.item-qty');
+            const priceInput = row.querySelector('.item-price');
+            const qty = parseFloat(qtyInput.value) || 0;
+            const price = parseFloat(priceInput.value) || 0;
+            row.querySelector('.item-total').textContent = '$' + Math.round(qty * price).toLocaleString();
+            updateItemMargin(input);
+        }
+
+        function updateItemMargin(input) {
+            const row = input.closest('.item-row');
+            const qty = parseFloat(row.querySelector('.item-qty')?.value) || 0;
+            const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+            const cost = parseFloat(row.querySelector('.item-cost')?.value) || 0;
+            const total = qty * price;
+            const margin = total > 0 ? (total - cost * qty) / total * 100 : 0;
+            const badge = row.querySelector('.item-margin');
+            if (badge) {
+                badge.textContent = Math.round(margin) + '%';
+                badge.className = 'item-margin badge ' + (margin < 20 ? 'bg-danger' : margin < 40 ? 'bg-warning text-dark' : 'bg-success');
             }
         }
 
