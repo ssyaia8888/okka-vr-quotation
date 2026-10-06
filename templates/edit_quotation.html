@@ -151,7 +151,7 @@
                             <i class="bi bi-check-lg"></i> 儲存修改
                         </button>
                         <button class="btn btn-success w-100 mb-2" onclick="confirmQuotation()">
-                            <i class="bi bi-check-circle"></i> 確認並同步 Odoo
+                            <i class="bi bi-check-circle"></i> 確認並同步 Chamber
                         </button>
                         <a href="/vr/{{ link.link_token }}" target="_blank" class="btn btn-outline-primary w-100 mb-2">
                             <i class="bi bi-eye"></i> 預覽 2D
@@ -341,7 +341,7 @@
         }
 
         async function confirmQuotation() {
-            if (!confirm('確定要確認此報價單？將會同步到 Odoo ERP。')) return;
+            if (!confirm('確定要確認此報價單？將會同步到 Chamber ERP。')) return;
 
             const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}/confirm`, {
                 method: 'POST'
@@ -349,7 +349,7 @@
 
             const result = await res.json();
             if (result.success) {
-                alert('確認成功！Odoo 訂單: ' + (result.odoo_order_id || '已建立'));
+                alert('確認成功！Chamber 訂單: ' + (result.chamber_order_id || '已建立'));
                 location.reload();
             } else {
                 alert(result.detail || '確認失敗');

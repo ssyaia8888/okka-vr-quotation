@@ -7,7 +7,7 @@ Interactive quotation webpage for OKKA interior design customers — 3D viewing 
 - **2D Interactive Quotation**: Material switching, real-time calculation, WhatsApp sharing, QR Code
 - **3D Room Viewer**: Three.js 3D room with perspective/top/front view switching
 - **WebSocket Real-time Sync**: Multiple devices can view the same quotation simultaneously
-- **ERP Integration**: Auto-create Odoo sale orders on customer confirmation
+- **ERP Integration**: Auto-create Chamber sale orders on customer confirmation
 - **Material Management**: CRUD interface for managing materials
 
 ## Tech Stack
@@ -15,7 +15,7 @@ Interactive quotation webpage for OKKA interior design customers — 3D viewing 
 - **Backend**: FastAPI + PostgreSQL
 - **Frontend**: Bootstrap5 + Three.js + WebSocket
 - **3D**: Three.js with furniture models
-- **ERP**: Odoo 18 via XML-RPC
+- **ERP**: Chamber 18 via XML-RPC
 
 ## Deployment
 
@@ -54,10 +54,10 @@ python3 app.py
 4. **Set Environment Variables**
    ```
    DATABASE_URL=<provided by Railway>
-   ODOO_URL=http://your-odoo-server:8069
-   ODOO_DB=genius
-   ODOO_USER=admin
-   ODOO_PASSWORD=admin
+   CHAMBER_URL=http://your-chamber-server:8069
+   CHAMBER_DB=genius
+   CHAMBER_USER=admin
+   CHAMBER_PASSWORD=admin
    ```
 
 5. **Deploy**
@@ -107,10 +107,10 @@ psql $DATABASE_URL < export_YYYYMMDD_HHMMSS.sql
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | Local Docker |
 | `PORT` | Server port | 8080 |
-| `ODOO_URL` | Odoo ERP URL | http://127.0.0.1:8069 |
-| `ODOO_DB` | Odoo database name | genius |
-| `ODOO_USER` | Odoo username | admin |
-| `ODOO_PASSWORD` | Odoo password | admin |
+| `CHAMBER_URL` | Chamber ERP URL | http://127.0.0.1:8069 |
+| `CHAMBER_DB` | Chamber database name | genius |
+| `CHAMBER_USER` | Chamber username | admin |
+| `CHAMBER_PASSWORD` | Chamber password | admin |
 
 ## Cost
 
@@ -118,7 +118,7 @@ psql $DATABASE_URL < export_YYYYMMDD_HHMMSS.sql
 - Blender 5.0 (GPL)
 - FastAPI + PostgreSQL
 - Bootstrap5 + Three.js + WebSocket
-- Odoo 18 (Enterprise trial)
+- Chamber 18 (Enterprise trial)
 - Railway free tier
 
 ## License

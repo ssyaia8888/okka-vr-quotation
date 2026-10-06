@@ -65,7 +65,7 @@ def setup(credentials_file='credentials.json'):
     ws_quot.append_row([
         'id', 'link_token', 'project_name', 'customer_name', 'customer_phone',
         'address', 'total_amount', 'status', 'valid_until', 'viewed_at',
-        'created_at', 'updated_at', 'notes', 'odoo_order_id'
+        'created_at', 'updated_at', 'notes', 'chamber_order_id'
     ])
     
     # Tab 4: Quotation Items

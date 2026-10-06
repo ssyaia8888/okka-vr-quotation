@@ -97,8 +97,8 @@
                                     {% elif link.status == 'confirmed' %}已確認
                                     {% else %}{{ link.status }}{% endif %}
                                 </span>
-                                {% if link.odoo_order_id %}
-                                <br><small class="text-success">SO{{ "%05d"|format(link.odoo_order_id) }}</small>
+                                {% if link.chamber_order_id %}
+                                <br><small class="text-success">SO{{ "%05d"|format(link.chamber_order_id) }}</small>
                                 {% endif %}
                             </td>
                             <td>{{ link.valid_until }}</td>

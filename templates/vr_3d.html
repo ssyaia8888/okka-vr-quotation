@@ -1383,7 +1383,7 @@
                 
                 const result = await res.json();
                 if (result.success) {
-                    alert('✅ 報價單已確認！\n\n訂單號: ' + (result.odoo_order_id ? 'SO' + String(result.odoo_order_id).padStart(5, '0') : '處理中'));
+                    alert('✅ 報價單已確認！\n\n訂單號: ' + (result.chamber_order_id ? 'SO' + String(result.chamber_order_id).padStart(5, '0') : '處理中'));
                     window.location.href = '/';
                 } else {
                     alert('確認失敗: ' + (result.error || '未知錯誤'));

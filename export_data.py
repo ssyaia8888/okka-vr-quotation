@@ -71,15 +71,15 @@ def export_data():
             link['total_amount'],
             link['status'],
             link['valid_until'].isoformat() if link['valid_until'] else 'NULL',
-            link['odoo_order_id']
+            link['chamber_order_id']
         )
         valid_until_str = 'NULL' if values[8] == 'NULL' else "'" + values[8] + "'"
-        odoo_order_str = 'NULL' if values[9] is None else str(values[9])
+        chamber_order_str = 'NULL' if values[9] is None else str(values[9])
         sql_lines.append(
             f"INSERT INTO vr_quotation_links (id, link_token, project_name, customer_name, customer_phone, "
-            f"customer_address, total_amount, status, valid_until, odoo_order_id) "
+            f"customer_address, total_amount, status, valid_until, chamber_order_id) "
             f"VALUES ({values[0]}, '{values[1]}', '{values[2]}', '{values[3]}', '{values[4]}', "
-            f"'{values[5]}', {values[6]}, '{values[7]}', {valid_until_str}, {odoo_order_str});"
+            f"'{values[5]}', {values[6]}, '{values[7]}', {valid_until_str}, {chamber_order_str});"
         )
     sql_lines.append("")
     

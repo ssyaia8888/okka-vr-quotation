@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS vr_quotation_links (
     total_amount DECIMAL(12,2) DEFAULT 0,
     status VARCHAR(50) DEFAULT 'pending',
     valid_until TIMESTAMP,
-    odoo_order_id INTEGER,
+    chamber_order_id INTEGER,
     confirmed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()

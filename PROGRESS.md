@@ -14,7 +14,7 @@
 - **功能**: 物料切換、即時計算、WhatsApp 分享、QR Code
 
 ### Phase 2: ERP 整合 + 後台管理 ✅
-- **ERP 整合**: 客人確認 → 自動建立 Odoo sale.order + sale.order.line
+- **ERP 整合**: 客人確認 → 自動建立 Chamber sale.order + sale.order.line
 - **WhatsApp 通知**: 確認後自動生成通知連結 (`whatsapp_notify.py`)
 - **Dashboard**: 顯示確認狀態 + ERP 訂單號
 - **物料管理**: CRUD 頁面 (`/materials`)
@@ -90,7 +90,7 @@
 3. **分享予客人** → WhatsApp / QR Code → `/vr/{token}` 或 `/vr3d/{token}`
 4. **客人互動** → 揀選物料、調整數量 → 即時計算
 5. **即時同步** → 多設備同時觀看，變更即時同步
-6. **客人確認** → 自動建立 Odoo 訂單
+6. **客人確認** → 自動建立 Chamber 訂單
 7. **通知 SSY** → WhatsApp 通知連結
 
 ## 🧪 測試數據
@@ -159,7 +159,7 @@ open http://127.0.0.1:8080/materials
 - Blender 5.0 (GPL)
 - FastAPI + PostgreSQL
 - Bootstrap5 + Three.js + WebSocket
-- Odoo 18 (Enterprise trial)
+- Chamber 18 (Enterprise trial)
 
 ## 📝 下一步 (Phase 5-6)
 - [ ] Phase 5: Blender 自動化建模 (匯入真實平面圖)

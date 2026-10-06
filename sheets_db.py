@@ -279,7 +279,7 @@ class SheetsDB:
             datetime.now().isoformat(),
             datetime.now().isoformat(),
             data.get('notes', ''),
-            data.get('odoo_order_id', '')
+            data.get('chamber_order_id', '')
         ]
         
         ws.append_row(row)
@@ -296,7 +296,7 @@ class SheetsDB:
         current = ws.row_values(row_num)
         headers = ['id', 'link_token', 'project_name', 'customer_name', 'customer_phone',
                    'address', 'total_amount', 'status', 'valid_until', 'viewed_at',
-                   'created_at', 'updated_at', 'notes', 'odoo_order_id']
+                   'created_at', 'updated_at', 'notes', 'chamber_order_id']
         
         for i, header in enumerate(headers):
             if header in data and i < len(current):

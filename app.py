@@ -250,7 +250,7 @@ def init_db():
             total_amount DECIMAL(12,2) DEFAULT 0,
             status VARCHAR(50) DEFAULT 'pending',
             valid_until TIMESTAMP,
-            odoo_order_id INTEGER,
+            chamber_order_id INTEGER,
             confirmed_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
@@ -291,6 +291,22 @@ def init_db():
                 cur.execute(sql)
             except Exception:
                 pass  # Column already exists
+
+        # 2026-10-06 命名遷移：odoo_order_id → chamber_order_id（舊 DB 安全升級）
+        try:
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='vr_quotation_links' AND column_name='odoo_order_id')
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                                       WHERE table_name='vr_quotation_links' AND column_name='chamber_order_id') THEN
+                        ALTER TABLE vr_quotation_links RENAME COLUMN odoo_order_id TO chamber_order_id;
+                    END IF;
+                END $$;
+            """)
+        except Exception:
+            pass
         
         # Insert sample materials if empty
         cur.execute("SELECT COUNT(*) FROM vr_materials")
@@ -364,28 +380,28 @@ def init_db():
         traceback.print_exc()
 
 # ============================================================
-# Odoo ERP Integration
+# Chamber ERP Integration
 # ============================================================
 
-ODOO_URL = os.getenv("ODOO_URL", "http://127.0.0.1:8069")
-ODOO_DB = os.getenv("ODOO_DB", "genius")
-ODOO_USER = os.getenv("ODOO_USER", "admin")
-ODOO_PASSWORD = os.getenv("ODOO_PASSWORD", "admin")
+CHAMBER_URL = os.getenv("CHAMBER_URL", "http://127.0.0.1:8069")
+CHAMBER_DB = os.getenv("CHAMBER_DB", "genius")
+CHAMBER_USER = os.getenv("CHAMBER_USER", "admin")
+CHAMBER_PASSWORD = os.getenv("CHAMBER_PASSWORD", "admin")
 
-def get_odoo_connection():
-    """Get Odoo XML-RPC connection"""
-    common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-    uid = common.authenticate(ODOO_DB, ODOO_USER, ODOO_PASSWORD, {})
-    models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+def get_chamber_connection():
+    """Get Chamber XML-RPC connection"""
+    common = xmlrpc.client.ServerProxy(f"{CHAMBER_URL}/xmlrpc/2/common")
+    uid = common.authenticate(CHAMBER_DB, CHAMBER_USER, CHAMBER_PASSWORD, {})
+    models = xmlrpc.client.ServerProxy(f"{CHAMBER_URL}/xmlrpc/2/object")
     return uid, models
 
 def find_or_create_partner(name, phone="", email=""):
-    """Find or create customer in Odoo"""
-    uid, models = get_odoo_connection()
+    """Find or create customer in Chamber"""
+    uid, models = get_chamber_connection()
     
     # Search by phone first
     if phone:
-        partners = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+        partners = models.execute_kw(CHAMBER_DB, uid, CHAMBER_PASSWORD,
             'res.partner', 'search_read',
             [[['phone', '=', phone]]],
             {'fields': ['id', 'name'], 'limit': 1})
@@ -393,7 +409,7 @@ def find_or_create_partner(name, phone="", email=""):
             return partners[0]['id']
     
     # Search by name
-    partners = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+    partners = models.execute_kw(CHAMBER_DB, uid, CHAMBER_PASSWORD,
         'res.partner', 'search_read',
         [[['name', '=', name]]],
         {'fields': ['id', 'name'], 'limit': 1})
@@ -401,7 +417,7 @@ def find_or_create_partner(name, phone="", email=""):
         return partners[0]['id']
     
     # Create new partner
-    partner_id = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+    partner_id = models.execute_kw(CHAMBER_DB, uid, CHAMBER_PASSWORD,
         'res.partner', 'create', [{
             'name': name,
             'phone': phone,
@@ -411,10 +427,10 @@ def find_or_create_partner(name, phone="", email=""):
     logger.info(f"Created new partner: {name} (id={partner_id})")
     return partner_id
 
-def sync_to_odoo(quotation_data, items_data):
-    """Sync confirmed quotation to Odoo as sale.order"""
+def sync_to_chamber(quotation_data, items_data):
+    """Sync confirmed quotation to Chamber as sale.order"""
     try:
-        uid, models = get_odoo_connection()
+        uid, models = get_chamber_connection()
         
         # Find or create customer
         partner_id = find_or_create_partner(
@@ -432,7 +448,7 @@ def sync_to_odoo(quotation_data, items_data):
             'origin': f"VR-{quotation_data['link_token']}"
         }
         
-        order_id = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+        order_id = models.execute_kw(CHAMBER_DB, uid, CHAMBER_PASSWORD,
             'sale.order', 'create', [order_vals])
         
         logger.info(f"Created sale.order: id={order_id}")
@@ -447,13 +463,13 @@ def sync_to_odoo(quotation_data, items_data):
                 'price_subtotal': item.get('total_price', 0)
             }
             
-            line_id = models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+            line_id = models.execute_kw(CHAMBER_DB, uid, CHAMBER_PASSWORD,
                 'sale.order.line', 'create', [line_vals])
             
             logger.info(f"Created sale.order.line: id={line_id}")
         
         # Confirm the order
-        models.execute_kw(ODOO_DB, uid, ODOO_PASSWORD,
+        models.execute_kw(CHAMBER_DB, uid, CHAMBER_PASSWORD,
             'sale.order', 'action_confirm', [[order_id]])
         
         logger.info(f"Confirmed sale.order: {order_id}")
@@ -466,7 +482,7 @@ def sync_to_odoo(quotation_data, items_data):
         }
         
     except Exception as e:
-        logger.error(f"Odoo sync error: {e}")
+        logger.error(f"Chamber sync error: {e}")
         return {
             'success': False,
             'error': str(e)
@@ -813,7 +829,7 @@ async def update_quotation(link_token: str, update: QuotationUpdate):
 
 @app.post("/api/quotation/{link_token}/confirm")
 async def confirm_quotation(link_token: str, confirm: QuotationConfirm):
-    """Customer confirms quotation — auto-sync to Odoo ERP"""
+    """Customer confirms quotation — auto-sync to Chamber ERP"""
     link = query_db(
         "SELECT * FROM vr_quotation_links WHERE link_token = %s",
         (link_token,)
@@ -848,8 +864,8 @@ async def confirm_quotation(link_token: str, confirm: QuotationConfirm):
         WHERE qi.quotation_link_id = %s
     """, (link_id,))
     
-    # Sync to Odoo ERP
-    erp_result = sync_to_odoo(
+    # Sync to Chamber ERP
+    erp_result = sync_to_chamber(
         dict(link_data),
         [dict(i) for i in items]
     )
@@ -858,7 +874,7 @@ async def confirm_quotation(link_token: str, confirm: QuotationConfirm):
     if erp_result['success']:
         query_db("""
             UPDATE vr_quotation_links 
-            SET odoo_order_id = %s 
+            SET chamber_order_id = %s 
             WHERE id = %s
         """, (erp_result['order_id'], link_id), fetch=False)
     
