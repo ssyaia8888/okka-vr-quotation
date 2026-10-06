@@ -290,6 +290,11 @@ def init_db():
             "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS formula VARCHAR(100)",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS length_cm DECIMAL(10,2)",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS width_cm DECIMAL(10,2)",
+            "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS commission_pct DECIMAL(5,2) DEFAULT 0",
+            "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(12,2) DEFAULT 0",
+            "CREATE TABLE IF NOT EXISTS vr_quotation_status_log ("
+            " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
+            " from_status VARCHAR(50), to_status VARCHAR(50), note TEXT, created_at TIMESTAMP DEFAULT NOW())",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -710,7 +715,7 @@ async def update_quotation(link_token: str, request: Request):
     link_id = link[0]["id"]
     
     # Update fields
-    fields = ['project_name', 'customer_name', 'customer_phone', 'address', 'valid_until']
+    fields = ['project_name', 'customer_name', 'customer_phone', 'address', 'valid_until', 'commission_pct']
     updates = []
     values = []
     
@@ -847,15 +852,19 @@ async def add_quotation_item(link_token: str, request: Request):
           body.get("length_cm"), body.get("width_cm"), body.get("area_name")),
         fetch=False)
 
-    # 全單總數重算
+    # 全單總數重算（連佣金）
     agg = query_db("""
         SELECT COALESCE(SUM(total_price),0) AS t,
                COALESCE(SUM(unit_cost * quantity),0) AS c
         FROM vr_quotation_items WHERE quotation_link_id = %s""", (link_id,))
     tot, cost = float(agg[0]["t"]), float(agg[0]["c"])
+    link_row = query_db("SELECT commission_pct FROM vr_quotation_links WHERE id = %s", (link_id,))
+    pct = float(link_row[0]["commission_pct"] or 0) if link_row else 0
+    commission = tot * pct / 100
     query_db(
-        "UPDATE vr_quotation_links SET total_amount = %s, total_cost = %s, total_profit = %s WHERE id = %s",
-        (tot, cost, tot - cost, link_id), fetch=False)
+        "UPDATE vr_quotation_links SET total_amount = %s, total_cost = %s, total_profit = %s, "
+        "commission_amount = %s WHERE id = %s",
+        (tot, cost, tot - cost, commission, link_id), fetch=False)
     return {"success": True, "quantity": quantity, "total_price": total_price,
             "formula_applied": computed is not None}
 
@@ -918,17 +927,58 @@ async def update_quotation(link_token: str, update: QuotationUpdate):
             "materials": missing_cost
         })
     
-    # Update total + 成本/利潤
+    # Update total + 成本/利潤/佣金
     total_profit = total - total_cost
+    link_row = query_db("SELECT commission_pct FROM vr_quotation_links WHERE id = %s", (link_id,))
+    pct = float(link_row[0]["commission_pct"] or 0) if link_row else 0
+    commission = total * pct / 100
     query_db(
-        "UPDATE vr_quotation_links SET total_amount = %s, total_cost = %s, total_profit = %s WHERE id = %s",
-        (total, total_cost, total_profit, link_id),
+        "UPDATE vr_quotation_links SET total_amount = %s, total_cost = %s, total_profit = %s, "
+        "commission_amount = %s WHERE id = %s",
+        (total, total_cost, total_profit, commission, link_id),
         fetch=False
     )
     
     return {"success": True, "total_amount": total, "total_cost": total_cost,
-            "total_profit": total_profit,
+            "total_profit": total_profit, "commission_amount": commission, "commission_pct": pct,
             "margin_pct": round(total_profit / total * 100, 1) if total else 0}
+
+# 合同狀態流轉（P2，源自 ECST 確認狀態欄：未確認/已確認/拒絕/待確認）
+STATUS_FLOW = {
+    "draft":     ["sent", "pending", "rejected"],
+    "sent":      ["viewed", "pending", "rejected"],
+    "viewed":    ["pending", "confirmed", "rejected"],
+    "pending":   ["confirmed", "rejected"],
+    "confirmed": [],
+    "rejected":  ["draft"],
+}
+STATUS_LABEL = {"draft": "草稿", "sent": "已送出", "viewed": "已閱",
+                "pending": "待確認", "confirmed": "已確認", "rejected": "拒絕"}
+
+
+@app.post("/api/quotation/{link_token}/status")
+async def transition_status(link_token: str, request: Request):
+    """合同狀態流轉 — 只准合法轉移，每次記錄 status_log"""
+    body = await request.json()
+    to_status = body.get("status")
+    note = body.get("note", "")
+    link = query_db("SELECT id, status FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    cur_status = link[0]["status"] or "draft"
+    allowed = STATUS_FLOW.get(cur_status, [])
+    if to_status not in allowed:
+        raise HTTPException(status_code=400, detail={
+            "error": f"唔准嘅狀態流轉：{cur_status} → {to_status}",
+            "allowed": allowed, "labels": STATUS_LABEL})
+    query_db("UPDATE vr_quotation_links SET status = %s, updated_at = NOW() WHERE id = %s",
+             (to_status, link[0]["id"]), fetch=False)
+    query_db("INSERT INTO vr_quotation_status_log (quotation_link_id, from_status, to_status, note) "
+             "VALUES (%s, %s, %s, %s)",
+             (link[0]["id"], cur_status, to_status, note), fetch=False)
+    return {"success": True, "from": cur_status, "to": to_status,
+            "label": STATUS_LABEL[to_status]}
+
 
 @app.post("/api/quotation/{link_token}/confirm")
 async def confirm_quotation(link_token: str, confirm: QuotationConfirm):
