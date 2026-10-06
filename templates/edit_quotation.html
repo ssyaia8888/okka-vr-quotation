@@ -66,6 +66,29 @@
                             <label class="form-label">地址</label>
                             <input type="text" class="form-control" id="address" value="{{ link.address }}">
                         </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">銷售員（佣金報表用）</label>
+                                <input type="text" class="form-control" id="salesperson" value="{{ link.salesperson or '' }}" placeholder="例：SSY">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">佣金 %</label>
+                                <input type="number" class="form-control" id="commissionPct" value="{{ link.commission_pct or 0 }}" min="0" max="100" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 合同附件（P3） -->
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>📎 合同附件（合同 PDF / 工地相）</span>
+                        <label class="btn btn-sm btn-primary mb-0">
+                            + 上傳附件<input type="file" id="attFile" style="display:none" onchange="uploadAttachment()">
+                        </label>
+                    </div>
+                    <div class="card-body">
+                        <div id="attList">載入中…</div>
                     </div>
                 </div>
 
@@ -371,14 +394,53 @@
             }
         }
 
+        // ── 合同附件（P3）──
+        async function loadAttachments() {
+            const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}/attachments`);
+            const d = await res.json();
+            const el = document.getElementById('attList');
+            if (!d.attachments || !d.attachments.length) {
+                el.innerHTML = '<span class="text-muted">（未有附件）</span>';
+                return;
+            }
+            el.innerHTML = d.attachments.map(a => `
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <div>
+                        <a href="/api/quotation/attachment/${a.id}/download">📄 ${a.filename}</a>
+                        <small class="text-muted ms-2">${Math.round(a.filesize/1024)}KB</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteAttachment(${a.id})">刪除</button>
+                </div>`).join('');
+        }
+
+        async function uploadAttachment() {
+            const f = document.getElementById('attFile').files[0];
+            if (!f) return;
+            const fd = new FormData();
+            fd.append('file', f);
+            const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}/attachments`, {method: 'POST', body: fd});
+            const d = await res.json();
+            if (d.success) { loadAttachments(); }
+            else { alert(d.detail || '上傳失敗'); }
+            document.getElementById('attFile').value = '';
+        }
+
+        async function deleteAttachment(id) {
+            if (!confirm('確定刪除此附件？')) return;
+            await fetch(`/api/quotation/attachment/${id}`, {method: 'DELETE'});
+            loadAttachments();
+        }
+        loadAttachments();
+
         async function saveChanges() {
-            // Save basic info
             const infoData = {
                 project_name: document.getElementById('projectName').value,
                 customer_name: document.getElementById('customerName').value,
                 customer_phone: document.getElementById('customerPhone').value,
                 address: document.getElementById('address').value,
-                valid_until: document.getElementById('validUntil').value
+                valid_until: document.getElementById('validUntil').value,
+                salesperson: document.getElementById('salesperson').value,
+                commission_pct: parseFloat(document.getElementById('commissionPct').value) || 0
             };
 
             const res = await fetch(`/api/quotation/${QUOTATION_TOKEN}`, {

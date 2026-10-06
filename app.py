@@ -295,6 +295,11 @@ def init_db():
             "CREATE TABLE IF NOT EXISTS vr_quotation_status_log ("
             " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
             " from_status VARCHAR(50), to_status VARCHAR(50), note TEXT, created_at TIMESTAMP DEFAULT NOW())",
+            "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS salesperson VARCHAR(100)",
+            "CREATE TABLE IF NOT EXISTS vr_quotation_attachments ("
+            " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
+            " filename VARCHAR(255) NOT NULL, filetype VARCHAR(50), filesize INTEGER,"
+            " content BYTEA, created_at TIMESTAMP DEFAULT NOW())",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -715,7 +720,7 @@ async def update_quotation(link_token: str, request: Request):
     link_id = link[0]["id"]
     
     # Update fields
-    fields = ['project_name', 'customer_name', 'customer_phone', 'address', 'valid_until', 'commission_pct']
+    fields = ['project_name', 'customer_name', 'customer_phone', 'address', 'valid_until', 'commission_pct', 'salesperson']
     updates = []
     values = []
     
@@ -978,6 +983,74 @@ async def transition_status(link_token: str, request: Request):
              (link[0]["id"], cur_status, to_status, note), fetch=False)
     return {"success": True, "from": cur_status, "to": to_status,
             "label": STATUS_LABEL[to_status]}
+
+
+# ── 合同附件（P3，ECST 餘下）— 存 DB bytea（重部署唔失）──
+@app.post("/api/quotation/{link_token}/attachments")
+async def upload_attachment(link_token: str, file: UploadFile = File(...)):
+    """上傳合同附件（合同 PDF / 工地相）"""
+    link = query_db("SELECT id FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="附件太大（上限 20MB）")
+    query_db("""
+        INSERT INTO vr_quotation_attachments (quotation_link_id, filename, filetype, filesize, content)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (link[0]["id"], file.filename, file.content_type or "", len(content), content),
+        fetch=False)
+    return {"success": True, "filename": file.filename, "size": len(content)}
+
+
+@app.get("/api/quotation/{link_token}/attachments")
+async def list_attachments(link_token: str):
+    link = query_db("SELECT id FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    rows = query_db("""
+        SELECT id, filename, filetype, filesize, created_at FROM vr_quotation_attachments
+        WHERE quotation_link_id = %s ORDER BY created_at DESC
+    """, (link[0]["id"],))
+    return {"attachments": rows}
+
+
+@app.get("/api/quotation/attachment/{att_id}/download")
+async def download_attachment(att_id: int):
+    from fastapi.responses import Response
+    row = query_db("SELECT filename, filetype, content FROM vr_quotation_attachments WHERE id = %s", (att_id,))
+    if not row:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    return Response(content=bytes(row[0]["content"]),
+                    media_type=row[0]["filetype"] or "application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="{row[0]["filename"]}"'})
+
+
+@app.delete("/api/quotation/attachment/{att_id}")
+async def delete_attachment(att_id: int):
+    query_db("DELETE FROM vr_quotation_attachments WHERE id = %s", (att_id,), fetch=False)
+    return {"success": True}
+
+
+# ── 佣金報表（P3）──
+@app.get("/api/reports/commission")
+async def commission_report(month: Optional[str] = None):
+    """佣金匯總：按銷售員/月（month=YYYY-MM，留空全部）"""
+    cond, params = "", []
+    if month:
+        cond = "AND to_char(created_at, 'YYYY-MM') = %s"
+        params = [month]
+    rows = query_db(f"""
+        SELECT COALESCE(salesperson, '(未指定)') AS salesperson,
+               COUNT(*) AS quotes,
+               COALESCE(SUM(total_amount),0) AS total_amount,
+               COALESCE(SUM(commission_amount),0) AS commission,
+               COALESCE(SUM(total_profit),0) AS total_profit
+        FROM vr_quotation_links
+        WHERE status NOT IN ('rejected') {cond}
+        GROUP BY 1 ORDER BY commission DESC
+    """, params)
+    return {"month": month or "全部", "rows": rows}
 
 
 @app.post("/api/quotation/{link_token}/confirm")
