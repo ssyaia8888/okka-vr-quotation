@@ -181,7 +181,7 @@
                             <td><span class="link-token">{{ link.link_token }}</span></td>
                             <td>{{ link.project_name }}</td>
                             <td>{{ link.customer_name or '-' }}</td>
-                            <td class="fw-bold">${{ "{:,.0f}".format(link.total_amount) }}</td>
+                            <td class="fw-bold">${{ "{:,.0f}".format(link.total_amount or 0) }}</td>
                             <td>
                                 <span class="badge status-{{ link.status }}">
                                     {% if link.status == 'pending' %}待查看
