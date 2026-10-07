@@ -304,6 +304,10 @@ def init_db():
             "CREATE TABLE IF NOT EXISTS vr_payment_notifications ("
             " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
             " note TEXT, notified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
+            "CREATE TABLE IF NOT EXISTS vr_customer_messages ("
+            " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
+            " message TEXT NOT NULL, contact VARCHAR(200),"
+            " notified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -653,6 +657,39 @@ async def customer_paid(link_token: str, request: Request):
     query_db("INSERT INTO vr_payment_notifications (quotation_link_id, note) VALUES (%s, %s)",
              (link[0]["id"], note), fetch=False)
     return {"success": True, "message": "已收到你的付款通知，我哋會盡快核對 ✅"}
+
+
+# ── 客戶留言（P12）— portal 留言/問嘢 → 通知老闆 ──
+@app.post("/api/quotation/{link_token}/message")
+async def customer_message(link_token: str, request: Request):
+    link = query_db("SELECT id FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    body = await request.json()
+    msg = (body.get("message") or "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="留言不能空白")
+    if len(msg) > 2000:
+        raise HTTPException(status_code=400, detail="留言太長（上限 2000 字）")
+    query_db("INSERT INTO vr_customer_messages (quotation_link_id, message, contact) VALUES (%s, %s, %s)",
+             (link[0]["id"], msg, body.get("contact", "")), fetch=False)
+    return {"success": True, "message": "留言已送出，我哋會盡快回覆 ✅"}
+
+
+@app.get("/api/notifications/messages")
+async def message_notifications():
+    rows = query_db("""
+        SELECT n.id, n.message, n.contact, n.created_at, l.customer_name, l.project_name, l.link_token
+        FROM vr_customer_messages n JOIN vr_quotation_links l ON l.id = n.quotation_link_id
+        WHERE n.notified = FALSE ORDER BY n.created_at
+    """)
+    return {"messages": rows}
+
+
+@app.post("/api/notifications/msg/{nid}/mark-notified")
+async def mark_msg_notified(nid: int):
+    query_db("UPDATE vr_customer_messages SET notified = TRUE WHERE id = %s", (nid,), fetch=False)
+    return {"success": True}
 
 
 @app.get("/api/notifications/paid")

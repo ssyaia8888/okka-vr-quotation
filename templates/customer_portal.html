@@ -80,6 +80,18 @@
     </div>
     {% endif %}
 
+    <div class="card mb-3">
+        <div class="card-header">💬 留言 / 問嘢</div>
+        <div class="card-body">
+            <textarea class="form-control mb-2" id="msgText" rows="3" placeholder="有任何疑問？例如：想改用另一款地磚、幾時可以開工…"></textarea>
+            <div class="d-flex gap-2">
+                <input class="form-control" id="msgContact" placeholder="聯絡方式（電話/Email，選填）" style="max-width:320px">
+                <button class="btn btn-primary" onclick="sendMsg()">送出留言</button>
+                <span id="msgDone" class="badge bg-success d-none align-self-center">✅ 已送出</span>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-body small text-muted">
             <strong>SSY Company</strong>｜Shop 33, G/F, Laguna City Phase 3, Lam Tin, Kowloon<br>
@@ -103,6 +115,21 @@ async function notifyPaid() {
         alert(d.message);
     } else {
         alert('提交失敗，請 WhatsApp 聯絡我哋：852 6692 3843');
+    }
+}
+async function sendMsg() {
+    const msg = document.getElementById('msgText').value.trim();
+    if (!msg) { alert('請輸入留言內容'); return; }
+    const res = await fetch(`/api/quotation/{{ link_token }}/message`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg, contact: document.getElementById('msgContact').value})
+    });
+    const d = await res.json();
+    if (d.success) {
+        document.getElementById('msgText').value = '';
+        document.getElementById('msgDone').classList.remove('d-none');
+    } else {
+        alert(d.detail || '送出失敗，請 WhatsApp 聯絡：852 6692 3843');
     }
 }
 </script>
