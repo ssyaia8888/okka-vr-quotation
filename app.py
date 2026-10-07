@@ -288,6 +288,7 @@ def init_db():
             "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS total_profit DECIMAL(12,2) DEFAULT 0",
             "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS unit_cost DECIMAL(10,2) DEFAULT 0",
             "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS formula VARCHAR(100)",
+            "ALTER TABLE vr_materials ADD COLUMN IF NOT EXISTS item_code VARCHAR(50)",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS length_cm DECIMAL(10,2)",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS width_cm DECIMAL(10,2)",
             "ALTER TABLE vr_quotation_links ADD COLUMN IF NOT EXISTS commission_pct DECIMAL(5,2) DEFAULT 0",
@@ -1221,6 +1222,7 @@ async def update_material(material_id: int, request: Request):
             brand = COALESCE(%s, brand),
             spec = COALESCE(%s, spec),
             formula = COALESCE(%s, formula),
+            item_code = COALESCE(%s, item_code),
             unit_cost = COALESCE(%s, unit_cost),
             is_active = COALESCE(%s, is_active)
         WHERE id = %s
@@ -1235,6 +1237,7 @@ async def update_material(material_id: int, request: Request):
         body.get('brand'),
         body.get('spec'),
         body.get('formula'),
+        body.get('item_code'),
         body.get('unit_cost'),
         body.get('is_active'),
         material_id

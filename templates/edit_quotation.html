@@ -219,6 +219,8 @@
                                     data-unit="{{ mat.unit }}"
                                     data-color="{{ mat.color_hex }}"
                                     data-formula="{{ mat.formula or '' }}">
+                                {% if mat.item_code %}[{{ mat.item_code }}] {% endif %}{{ mat.name }} ({{ mat.category }}) - ${{ "{:,.0f}".format(mat.unit_price) }}/{{ mat.unit }}{% if mat.spec %}｜{{ mat.spec[:30] }}{% endif %}
+                            </option>
                                 {{ mat.name }} ({{ mat.category }}) - ${{ "{:,.0f}".format(mat.unit_price) }}/{{ mat.unit }}
                             </option>
                             {% endfor %}
