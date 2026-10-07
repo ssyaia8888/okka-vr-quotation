@@ -635,6 +635,46 @@ async def vr_quotation_page(request: Request, link_token: str):
         "link_token": link_token
     })
 
+@app.get("/portal/{link_token}", response_class=HTMLResponse)
+async def customer_portal(request: Request, link_token: str):
+    """客戶 portal（P10）— 公開連結免登入：報價/狀態/付款分期/附件"""
+    from datetime import datetime as _dt, timedelta as _td
+    link = query_db("SELECT * FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    link = link[0]
+    items = query_db("""
+        SELECT qi.area_name, qi.quantity, qi.unit_price, qi.total_price, qi.notes,
+               m.name AS material_name, m.category, m.unit, m.spec
+        FROM vr_quotation_items qi JOIN vr_materials m ON qi.material_id = m.id
+        WHERE qi.quotation_link_id = %s ORDER BY qi.id
+    """, (link["id"],))
+    atts = query_db(
+        "SELECT id, filename, filesize FROM vr_quotation_attachments "
+        "WHERE quotation_link_id = %s ORDER BY created_at DESC", (link["id"],))
+    total = float(link.get("total_amount") or 0)
+    schedule = []
+    if total:
+        dep = round(total * 0.3, 2)
+        inst = round((total - dep) / 5, 2)
+        base = link.get("created_at") or _dt.now()
+        schedule.append({"cat": "訂金", "amount": dep, "due": base.strftime("%Y-%m-%d")})
+        for i in range(2, 7):
+            schedule.append({"cat": f"第{i}期", "amount": inst,
+                             "due": (base + _td(days=30 * (i - 1))).strftime("%Y-%m-%d")})
+    status_label = STATUS_LABELS.get(link.get("status"), link.get("status"))
+    return templates.TemplateResponse(request, "customer_portal.html", {
+        "request": request,
+        "link": link,
+        "items": items,
+        "atts": atts,
+        "schedule": schedule,
+        "total": total,
+        "status_label": status_label,
+        "link_token": link_token,
+    })
+
+
 @app.get("/vr3d/{link_token}", response_class=HTMLResponse)
 async def vr_3d_page(request: Request, link_token: str):
     """3D interactive quotation page for customers"""

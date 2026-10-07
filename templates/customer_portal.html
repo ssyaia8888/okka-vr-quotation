@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客戶專頁 — {{ link.project_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body style="background:#f6f7fb">
+<div class="container py-4" style="max-width:860px">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="mb-0">🏠 {{ link.project_name }}</h4>
+            <small class="text-muted">SSY Company 裝修工程 · 客戶專頁</small>
+        </div>
+        <span class="badge bg-primary fs-6">{{ status_label }}</span>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-6"><small class="text-muted">客戶</small><div>{{ link.customer_name }}</div></div>
+                <div class="col-6"><small class="text-muted">工程地址</small><div>{{ link.project_address or link.address or '—' }}</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">📋 報價項目</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>區域</th><th>物料</th><th class="text-end">數量</th><th class="text-end">單價</th><th class="text-end">金額</th></tr></thead>
+                <tbody>
+                {% for it in items %}
+                <tr>
+                    <td>{{ it.area_name or '—' }}</td>
+                    <td>{{ it.material_name }}<br><small class="text-muted">{{ it.spec or it.category }}</small></td>
+                    <td class="text-end">{{ it.quantity }} {{ it.unit or '' }}</td>
+                    <td class="text-end">${{ "{:,.0f}".format(it.unit_price) }}</td>
+                    <td class="text-end">${{ "{:,.0f}".format(it.total_price) }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot><tr class="table-light"><td colspan="4" class="text-end fw-bold">合計</td><td class="text-end fw-bold">${{ "{:,.0f}".format(total) }}</td></tr></tfoot>
+            </table>
+        </div>
+    </div>
+
+    {% if schedule %}
+    <div class="card mb-3">
+        <div class="card-header">💰 付款分期</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>期數</th><th class="text-end">金額</th><th>到期</th></tr></thead>
+                <tbody>
+                {% for s in schedule %}
+                <tr><td>{{ s.cat }}</td><td class="text-end">${{ "{:,.0f}".format(s.amount) }}</td><td>{{ s.due }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if atts %}
+    <div class="card mb-3">
+        <div class="card-header">📎 合同附件</div>
+        <div class="card-body">
+            {% for a in atts %}
+            <div class="d-flex justify-content-between border-bottom py-2">
+                <span>📄 {{ a.filename }} <small class="text-muted">({{ (a.filesize / 1024) | round(0) | int }}KB)</small></span>
+                <a class="btn btn-sm btn-outline-primary" href="/api/quotation/attachment/{{ a.id }}/download">下載</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body small text-muted">
+            <strong>SSY Company</strong>｜Shop 33, G/F, Laguna City Phase 3, Lam Tin, Kowloon<br>
+            WhatsApp：<a href="https://wa.me/85266923843">852 6692 3843</a> · 聯絡人：SSY<br>
+            <em>本頁為報價參考，正式合約以雙方簽署文件為準。</em>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
