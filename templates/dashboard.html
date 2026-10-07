@@ -144,7 +144,7 @@
                             <div class="card mb-2 shadow-sm" draggable="true"
                                  ondragstart="dragCard(event, '{{ l.link_token }}')" style="cursor:grab">
                                 <div class="card-body p-2">
-                                    <div class="small fw-bold">{{ l.project_name[:16] }}</div>
+                                    <div class="small fw-bold">{{ (l.project_name or '')[:16] }}</div>
                                     <div class="small text-muted">{{ l.customer_name }}</div>
                                     <div class="small">${{ "{:,.0f}".format(l.total_amount or 0) }}</div>
                                 </div>
