@@ -49,7 +49,10 @@
 
     {% if schedule %}
     <div class="card mb-3">
-        <div class="card-header">💰 付款分期</div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>💰 付款分期</span>
+            <button class="btn btn-success btn-sm" id="paidBtn" onclick="notifyPaid()">✅ 我已過數</button>
+        </div>
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
                 <thead><tr><th>期數</th><th class="text-end">金額</th><th>到期</th></tr></thead>
@@ -86,5 +89,22 @@
     </div>
 
 </div>
+<script>
+async function notifyPaid() {
+    const note = prompt('備註（例：過咗 $30,000 恆生轉數快，可留空）') || '';
+    const res = await fetch(`/api/quotation/{{ link_token }}/paid`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({note: note})
+    });
+    const d = await res.json();
+    if (d.success) {
+        const btn = document.getElementById('paidBtn');
+        btn.outerHTML = '<span class="badge bg-success">✅ 已通知老闆核對</span>';
+        alert(d.message);
+    } else {
+        alert('提交失敗，請 WhatsApp 聯絡我哋：852 6692 3843');
+    }
+}
+</script>
 </body>
 </html>

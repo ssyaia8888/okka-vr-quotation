@@ -301,6 +301,9 @@ def init_db():
             " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
             " filename VARCHAR(255) NOT NULL, filetype VARCHAR(50), filesize INTEGER,"
             " content BYTEA, created_at TIMESTAMP DEFAULT NOW())",
+            "CREATE TABLE IF NOT EXISTS vr_payment_notifications ("
+            " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
+            " note TEXT, notified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -634,6 +637,40 @@ async def vr_quotation_page(request: Request, link_token: str):
         "category_names": category_names,
         "link_token": link_token
     })
+
+# ── 付款確認（P11）— 客戶「已過數」→ 通知老闆（催收政策：只提醒老闆）──
+@app.post("/api/quotation/{link_token}/paid")
+async def customer_paid(link_token: str, request: Request):
+    link = query_db("SELECT id, customer_name, project_name, total_amount FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    note = body.get("note", "")
+    query_db("INSERT INTO vr_payment_notifications (quotation_link_id, note) VALUES (%s, %s)",
+             (link[0]["id"], note), fetch=False)
+    return {"success": True, "message": "已收到你的付款通知，我哋會盡快核對 ✅"}
+
+
+@app.get("/api/notifications/paid")
+async def paid_notifications():
+    """genie 側掃描用：未通知老闆嘅「已過數」"""
+    rows = query_db("""
+        SELECT n.id, n.note, n.created_at, l.customer_name, l.project_name, l.total_amount, l.link_token
+        FROM vr_payment_notifications n JOIN vr_quotation_links l ON l.id = n.quotation_link_id
+        WHERE n.notified = FALSE ORDER BY n.created_at
+    """)
+    return {"notifications": rows}
+
+
+@app.post("/api/notifications/{nid}/mark-notified")
+async def mark_notified(nid: int):
+    query_db("UPDATE vr_payment_notifications SET notified = TRUE WHERE id = %s", (nid,), fetch=False)
+    return {"success": True}
+
 
 @app.get("/portal/{link_token}", response_class=HTMLResponse)
 async def customer_portal(request: Request, link_token: str):
