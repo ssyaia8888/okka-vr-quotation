@@ -662,7 +662,7 @@ async def customer_portal(request: Request, link_token: str):
         for i in range(2, 7):
             schedule.append({"cat": f"第{i}期", "amount": inst,
                              "due": (base + _td(days=30 * (i - 1))).strftime("%Y-%m-%d")})
-    status_label = STATUS_LABELS.get(link.get("status"), link.get("status"))
+    status_label = STATUS_LABEL.get(link.get("status"), link.get("status"))
     return templates.TemplateResponse(request, "customer_portal.html", {
         "request": request,
         "link": link,
