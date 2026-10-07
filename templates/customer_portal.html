@@ -123,31 +123,42 @@ async function loadThread() {
         const res = await fetch(`/api/quotation/{{ link_token }}/messages`);
         const d = await res.json();
         const el = document.getElementById('msgThread');
+        const myContact = localStorage.getItem('portal_contact') || '';
         if (!d.messages || !d.messages.length) { el.innerHTML = ''; return; }
-        el.innerHTML = d.messages.map(m => `
+        // 身份化（P14）：只顯示自己嘅 thread（冇 contact 嘅留言 + 自己 contact 嘅）
+        const mine = d.messages.filter(m => !m.contact || !myContact || m.contact === myContact);
+        el.innerHTML = mine.map(m => `
             <div class="border rounded p-2 mb-2">
                 <div class="small text-muted">你：${m.created_at ? m.created_at.slice(0,16) : ''}</div>
                 <div>${m.message}</div>
                 ${m.reply ? `<div class="mt-2 p-2 rounded" style="background:#eef6ff">
                     <div class="small text-muted">SSY Company 回覆：${m.replied_at ? m.replied_at.slice(0,16) : ''}</div>
                     <div>${m.reply}</div></div>` : '<div class="small text-muted mt-1">（等緊回覆）</div>'}
-            </div>`).join('');
+            </div>`).join('') || '<div class="small text-muted">（暫無留言記錄）</div>';
     } catch (e) {}
 }
 loadThread();
 setInterval(loadThread, 60000);
+// 身份化：記住聯絡方式
+(function() {
+    const saved = localStorage.getItem('portal_contact');
+    if (saved) document.getElementById('msgContact').value = saved;
+})();
 
 async function sendMsg() {
     const msg = document.getElementById('msgText').value.trim();
     if (!msg) { alert('請輸入留言內容'); return; }
+    const contact = document.getElementById('msgContact').value;
+    if (contact) localStorage.setItem('portal_contact', contact);
     const res = await fetch(`/api/quotation/{{ link_token }}/message`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({message: msg, contact: document.getElementById('msgContact').value})
+        body: JSON.stringify({message: msg, contact: contact})
     });
     const d = await res.json();
     if (d.success) {
         document.getElementById('msgText').value = '';
         document.getElementById('msgDone').classList.remove('d-none');
+        loadThread();
     } else {
         alert(d.detail || '送出失敗，請 WhatsApp 聯絡：852 6692 3843');
     }

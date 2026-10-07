@@ -125,6 +125,38 @@
             </div>
         </div>
 
+        <!-- 報價狀態看板（P14 drag-drop） -->
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-bold">🗂 報價狀態看板（拖曳改狀態）</span>
+                <span id="kanbanMsg" class="small"></span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2" id="kanban">
+                    {% for st, label in [('draft','草稿'),('sent','已送出'),('viewed','已閱'),('pending','待確認'),('confirmed','已確認'),('rejected','拒絕')] %}
+                    <div class="col-md-2">
+                        <div class="rounded p-2" style="background:#f1f5f9;min-height:180px"
+                             ondragover="event.preventDefault()" ondrop="dropCard(event, '{{ st }}')">
+                            <div class="small fw-bold text-muted mb-2">{{ label }}
+                                <span class="badge bg-secondary">{{ links|selectattr('status','equalto',st)|list|length }}</span>
+                            </div>
+                            {% for l in links if l.status == st %}
+                            <div class="card mb-2 shadow-sm" draggable="true"
+                                 ondragstart="dragCard(event, '{{ l.link_token }}')" style="cursor:grab">
+                                <div class="card-body p-2">
+                                    <div class="small fw-bold">{{ l.project_name[:16] }}</div>
+                                    <div class="small text-muted">{{ l.customer_name }}</div>
+                                    <div class="small">${{ "{:,.0f}".format(l.total_amount or 0) }}</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
         <!-- Quotation List -->
         <div class="card">
             <div class="card-header bg-white">
@@ -295,5 +327,32 @@
             new bootstrap.Modal(document.getElementById('qrModal')).show();
         }
     </script>
+<script>
+// 報價狀態看板 drag-drop（P14）
+function dragCard(ev, token) {
+    ev.dataTransfer.setData("token", token);
+}
+async function dropCard(ev, targetStatus) {
+    ev.preventDefault();
+    const token = ev.dataTransfer.getData("token");
+    const msgEl = document.getElementById('kanbanMsg');
+    try {
+        const res = await fetch(`/api/quotation/${token}/status`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status: targetStatus})
+        });
+        const d = await res.json();
+        if (res.ok && (d.success || d.status === targetStatus)) {
+            msgEl.innerHTML = `<span class="text-success">✅ 已移去「${targetStatus}」— 重新整理見更新</span>`;
+            setTimeout(() => location.reload(), 700);
+        } else {
+            const allowed = (d.allowed || []).join(' / ') || '—';
+            msgEl.innerHTML = `<span class="text-danger">❌ 唔可以移去「${targetStatus}」（允許：${allowed}）</span>`;
+        }
+    } catch (e) {
+        msgEl.innerHTML = `<span class="text-danger">❌ 更新失敗</span>`;
+    }
+}
+</script>
 </body>
 </html>
