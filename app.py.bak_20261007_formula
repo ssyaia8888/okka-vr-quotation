@@ -527,19 +527,15 @@ class MaterialUpdate(BaseModel):
 
 
 def _eval_formula(formula: str, l, w, h):
-    """安全公式計算 — 用 chamber formula_engine（ast 白名單，唔用 eval）。
-    支援中英文變數（長/闊/高 = L/W/H）、× ÷ ＋ －、括號、min/max/round。
-    有未知變數（例如 單價）→ 回 None，交返人手輸入，唔會亂算。"""
+    """安全公式計算 — 只准 L/W/H/數字/+-*/()  （長×闊×單價 引擎）"""
+    import re
     if not formula:
         return None
+    expr = formula.upper().replace("×", "*").replace("÷", "/")
+    if not re.fullmatch(r"[LWH0-9\.\+\-\*/\(\) ]+", expr):
+        return None
     try:
-        import formula_engine as fe
-        names = {"L": l or 0, "W": w or 0, "H": h or 0,
-                 "長": l or 0, "闊": w or 0, "高": h or 0}
-        for v in fe.required_vars(formula):
-            if v not in names:
-                return None
-        val = fe.compute(formula, names)
+        val = eval(expr, {"__builtins__": {}}, {"L": l or 0, "W": w or 0, "H": h or 0})
         return float(val) if val and val > 0 else None
     except Exception:
         return None
@@ -558,38 +554,14 @@ class QuotationConfirm(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    """Admin Dashboard — 2026-10-07 翻新：統計+佣金+通知中心"""
+    """Admin Dashboard — list all quotation links"""
     links = query_db("""
         SELECT * FROM vr_quotation_links 
         ORDER BY created_at DESC
     """)
-    stats = {"total_amount": 0, "commission": 0, "profit": 0}
-    for l in links:
-        stats["total_amount"] += float(l.get("total_amount") or 0)
-        stats["commission"] += float(l.get("commission_amount") or 0)
-        stats["profit"] += float(l.get("total_profit") or 0)
-    by_sales = query_db("""
-        SELECT COALESCE(salesperson, '(未指定)') AS sp, COUNT(*) AS n,
-               COALESCE(SUM(total_amount),0) AS amt, COALESCE(SUM(commission_amount),0) AS comm
-        FROM vr_quotation_links WHERE status NOT IN ('rejected')
-        GROUP BY 1 ORDER BY comm DESC
-    """)
-    notices = {"paid": [], "msgs": []}
-    try:
-        notices["paid"] = query_db("SELECT n.id, n.note, l.project_name, l.customer_name, l.total_amount "
-                                   "FROM vr_payment_notifications n JOIN vr_quotation_links l ON l.id = n.quotation_link_id "
-                                   "WHERE n.notified = FALSE ORDER BY n.created_at")
-        notices["msgs"] = query_db("SELECT n.id, n.message, l.project_name, l.customer_name "
-                                   "FROM vr_customer_messages n JOIN vr_quotation_links l ON l.id = n.quotation_link_id "
-                                   "WHERE n.notified = FALSE ORDER BY n.created_at")
-    except Exception:
-        pass
     return templates.TemplateResponse(request, "dashboard.html", {
         "request": request,
         "links": links,
-        "stats": stats,
-        "by_sales": by_sales,
-        "notices": notices,
         "page": "dashboard"
     })
 
@@ -1590,16 +1562,6 @@ async def sync_to_sheets():
 # ============================================================
 # Google Drive Texture Sync
 # ============================================================
-
-@app.get("/api/formula/preview")
-async def formula_preview(formula: str = "", l: float = 0, w: float = 0, h: float = 0):
-    """公式引擎預覽（唯讀、唔寫任何數據）
-    例：/api/formula/preview?formula=長*闊&l=200&w=100  → {"result": 20000.0}
-    支援中英文變數（長/闊/高 = L/W/H）、× ÷ ＋ －、括號、round/min/max。"""
-    val = _eval_formula(formula, l, w, h)
-    return {"formula": formula, "l": l, "w": w, "h": h,
-            "result": val, "applied": val is not None}
-
 
 def get_drive_service():
     """Get authorized Google Drive service."""

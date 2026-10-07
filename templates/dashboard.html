@@ -39,28 +39,88 @@
     <div class="container">
         <!-- Stats -->
         <div class="row mb-4">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card stat-card p-3">
                     <div class="text-muted small">總報價單</div>
                     <div class="fs-3 fw-bold">{{ links|length }}</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card stat-card p-3">
-                    <div class="text-muted small">待查看</div>
-                    <div class="fs-3 fw-bold text-warning">{{ links|selectattr('status', 'equalto', 'pending')|list|length }}</div>
+                    <div class="text-muted small">總額</div>
+                    <div class="fs-4 fw-bold">${{ "{:,.0f}".format(stats.total_amount) }}</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card stat-card p-3">
-                    <div class="text-muted small">已查看</div>
-                    <div class="fs-3 fw-bold text-info">{{ links|selectattr('status', 'equalto', 'viewed')|list|length }}</div>
+                    <div class="text-muted small">總毛利</div>
+                    <div class="fs-4 fw-bold text-success">${{ "{:,.0f}".format(stats.profit) }}</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <div class="card stat-card p-3">
+                    <div class="text-muted small">總佣金</div>
+                    <div class="fs-4 fw-bold text-primary">${{ "{:,.0f}".format(stats.commission) }}</div>
+                </div>
+            </div>
+            <div class="col-md-2">
                 <div class="card stat-card p-3">
                     <div class="text-muted small">已確認</div>
-                    <div class="fs-3 fw-bold text-success">{{ links|selectattr('status', 'equalto', 'confirmed')|list|length }}</div>
+                    <div class="fs-4 fw-bold text-success">{{ links|selectattr('status', 'equalto', 'confirmed')|list|length }}</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card stat-card p-3">
+                    <div class="text-muted small">待辦通知</div>
+                    <div class="fs-4 fw-bold {% if notices.paid or notices.msgs %}text-danger{% endif %}">{{ notices.paid|length + notices.msgs|length }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card mb-4">
+            <div class="card-body py-2 d-flex gap-2 flex-wrap">
+                <a href="/materials" class="btn btn-sm btn-outline-primary">🧱 物料庫（含計價公式）</a>
+                <a href="/api/reports/commission" target="_blank" class="btn btn-sm btn-outline-secondary">📊 佣金報表 API</a>
+                <span class="ms-auto small text-muted align-self-center">客戶 portal：<code>/portal/&lt;token&gt;</code>｜WhatsApp 入數：「收陳生按金 3 萬」</span>
+            </div>
+        </div>
+
+        <!-- 通知中心 + 佣金 -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-white fw-bold">🔔 通知中心（待處理）</div>
+                    <div class="card-body p-0" style="max-height:220px;overflow-y:auto">
+                        {% for p in notices.paid %}
+                        <div class="border-bottom px-3 py-2"><span class="badge bg-success me-1">已過數</span>{{ p.project_name }}（{{ p.customer_name }}）${{ "{:,.0f}".format(p.total_amount or 0) }}</div>
+                        {% endfor %}
+                        {% for m in notices.msgs %}
+                        <div class="border-bottom px-3 py-2"><span class="badge bg-info me-1">留言</span>{{ m.project_name }}：{{ m.message[:80] }}</div>
+                        {% endfor %}
+                        {% if not notices.paid and not notices.msgs %}
+                        <div class="text-muted text-center py-4">✅ 沒有待辦</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-white fw-bold">💰 佣金匯總（按銷售員）</div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>銷售員</th><th class="text-end">報價數</th><th class="text-end">總額</th><th class="text-end">佣金</th></tr></thead>
+                            <tbody>
+                            {% for s in by_sales %}
+                            <tr><td>{{ s.sp }}</td><td class="text-end">{{ s.n }}</td>
+                                <td class="text-end">${{ "{:,.0f}".format(s.amt) }}</td>
+                                <td class="text-end">${{ "{:,.0f}".format(s.comm) }}</td></tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-muted text-center">（暫無）</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
