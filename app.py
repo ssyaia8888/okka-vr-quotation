@@ -527,15 +527,19 @@ class MaterialUpdate(BaseModel):
 
 
 def _eval_formula(formula: str, l, w, h):
-    """安全公式計算 — 只准 L/W/H/數字/+-*/()  （長×闊×單價 引擎）"""
-    import re
+    """安全公式計算 — 用 chamber formula_engine（ast 白名單，唔用 eval）。
+    支援中英文變數（長/闊/高 = L/W/H）、× ÷ ＋ －、括號、min/max/round。
+    有未知變數（例如 單價）→ 回 None，交返人手輸入，唔會亂算。"""
     if not formula:
         return None
-    expr = formula.upper().replace("×", "*").replace("÷", "/")
-    if not re.fullmatch(r"[LWH0-9\.\+\-\*/\(\) ]+", expr):
-        return None
     try:
-        val = eval(expr, {"__builtins__": {}}, {"L": l or 0, "W": w or 0, "H": h or 0})
+        import formula_engine as fe
+        names = {"L": l or 0, "W": w or 0, "H": h or 0,
+                 "長": l or 0, "闊": w or 0, "高": h or 0}
+        for v in fe.required_vars(formula):
+            if v not in names:
+                return None
+        val = fe.compute(formula, names)
         return float(val) if val and val > 0 else None
     except Exception:
         return None
@@ -1562,6 +1566,16 @@ async def sync_to_sheets():
 # ============================================================
 # Google Drive Texture Sync
 # ============================================================
+
+@app.get("/api/formula/preview")
+async def formula_preview(formula: str = "", l: float = 0, w: float = 0, h: float = 0):
+    """公式引擎預覽（唯讀、唔寫任何數據）
+    例：/api/formula/preview?formula=長*闊&l=200&w=100  → {"result": 20000.0}
+    支援中英文變數（長/闊/高 = L/W/H）、× ÷ ＋ －、括號、round/min/max。"""
+    val = _eval_formula(formula, l, w, h)
+    return {"formula": formula, "l": l, "w": w, "h": h,
+            "result": val, "applied": val is not None}
+
 
 def get_drive_service():
     """Get authorized Google Drive service."""
