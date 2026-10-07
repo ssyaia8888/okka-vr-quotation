@@ -252,6 +252,7 @@
                         <div class="col-md-6 mb-3">
                             <label class="form-label">公式</label>
                             <input type="text" class="form-control" id="newFormulaDisplay" readonly placeholder="物料冇公式（手動輸入數量）">
+                            <div class="form-text" id="newFormulaResult" style="min-height:1.2em"></div>
                         </div>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
@@ -292,24 +293,59 @@
         }
 
         function applyFormula() {
-            // 公式引擎：中英文變數（長/闊/高 = L/W/H）自動計數量
+            // 公式引擎：中英文變數（長/闊/高 = L/W/H）自動計數量 + 後端權威預覽
             const select = document.getElementById('newMaterial');
             const option = select.options[select.selectedIndex];
             const raw = (option && option.dataset.formula) ? option.dataset.formula : '';
-            // 中文變數歸一 → L/W/H，再轉換運算符
-            const f = raw.replace(/長/g,'L').replace(/闊/g,'W').replace(/高/g,'H')
-                         .toUpperCase().replace(/×/g,'*').replace(/÷/g,'/');
+            const disp = document.getElementById('newFormulaDisplay');
+            const el = document.getElementById('newFormulaResult');
+            if (disp) disp.value = raw || '';
+
             const L = parseFloat(document.getElementById('newLength').value) || 0;
             const W = parseFloat(document.getElementById('newWidth').value) || 0;
-            if (f && /^[LWH0-9.+\-*/() ]+$/.test(f) && (L || W)) {
+            const H = 0;
+
+            if (!raw) {
+                if (el) { el.className = 'form-text text-muted'; el.textContent = ''; }
+                return;
+            }
+            if (!(L || W || H)) {
+                if (el) { el.className = 'form-text text-muted'; el.textContent = '輸入長／闊後自動計算數量'; }
+                return;
+            }
+
+            // 即時前端估算（L/W 變數，秒級反饋）
+            const f = raw.replace(/長/g,'L').replace(/闊/g,'W').replace(/高/g,'H')
+                         .toUpperCase().replace(/×/g,'*').replace(/÷/g,'/');
+            if (f && /^[LWH0-9.+\-*/() ]+$/.test(f)) {
                 try {
-                    const qty = Function('L','W','H', 'return (' + f + ')')(L, W, 0);
+                    const qty = Function('L','W','H', 'return (' + f + ')')(L, W, H);
                     if (qty > 0) {
                         document.getElementById('newQuantity').value = Math.round(qty * 100) / 100;
                         updateNewItemTotal();
                     }
                 } catch (e) {}
             }
+
+            // 後端權威預覽（唯讀端點 /api/formula/preview，唔寫任何數據）
+            fetch('/api/formula/preview?formula=' + encodeURIComponent(raw) +
+                  '&l=' + encodeURIComponent(L) + '&w=' + encodeURIComponent(W) + '&h=' + encodeURIComponent(H))
+                .then(r => r.json())
+                .then(res => {
+                    const box = document.getElementById('newFormulaResult');
+                    if (!box) return;
+                    if (res && res.applied && res.result !== null && res.result !== undefined) {
+                        const v = Math.round(res.result * 100) / 100;
+                        box.className = 'form-text text-success fw-semibold';
+                        box.textContent = '✅ 公式計算結果 = ' + v.toLocaleString() + '（已自動填入數量）';
+                        document.getElementById('newQuantity').value = v;
+                        updateNewItemTotal();
+                    } else {
+                        box.className = 'form-text text-warning';
+                        box.textContent = '⚠ 公式含未支援變數（例如 單價），請人手輸入數量';
+                    }
+                })
+                .catch(() => {});
         }
 
         function showAddItemModal() {
@@ -318,6 +354,10 @@
             document.getElementById('newQuantity').value = '1';
             document.getElementById('newUnitPrice').value = '';
             document.getElementById('newItemTotal').textContent = '$0';
+            const fl = document.getElementById('newLength'); if (fl) fl.value = '';
+            const fw = document.getElementById('newWidth'); if (fw) fw.value = '';
+            const fd = document.getElementById('newFormulaDisplay'); if (fd) fd.value = '';
+            const fr = document.getElementById('newFormulaResult'); if (fr) { fr.textContent = ''; fr.className = 'form-text'; }
             new bootstrap.Modal(document.getElementById('addItemModal')).show();
         }
 
