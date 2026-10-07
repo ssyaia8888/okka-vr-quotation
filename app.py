@@ -308,6 +308,8 @@ def init_db():
             " id SERIAL PRIMARY KEY, quotation_link_id INTEGER,"
             " message TEXT NOT NULL, contact VARCHAR(200),"
             " notified BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
+            "ALTER TABLE vr_customer_messages ADD COLUMN IF NOT EXISTS reply TEXT",
+            "ALTER TABLE vr_customer_messages ADD COLUMN IF NOT EXISTS replied_at TIMESTAMP",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS notes TEXT",
             "ALTER TABLE vr_quotation_items ADD COLUMN IF NOT EXISTS quotation_link_id INTEGER REFERENCES vr_quotation_links(id) ON DELETE CASCADE",
         ]
@@ -702,6 +704,30 @@ async def customer_message(link_token: str, request: Request):
     query_db("INSERT INTO vr_customer_messages (quotation_link_id, message, contact) VALUES (%s, %s, %s)",
              (link[0]["id"], msg, body.get("contact", "")), fetch=False)
     return {"success": True, "message": "留言已送出，我哋會盡快回覆 ✅"}
+
+
+# ── 對話式回覆（P13-b）— 留言 thread + 回覆 ──
+@app.get("/api/quotation/{link_token}/messages")
+async def message_thread(link_token: str):
+    link = query_db("SELECT id FROM vr_quotation_links WHERE link_token = %s", (link_token,))
+    if not link:
+        raise HTTPException(status_code=404, detail="報價單不存在")
+    rows = query_db("""
+        SELECT id, message, contact, reply, created_at, replied_at FROM vr_customer_messages
+        WHERE quotation_link_id = %s ORDER BY created_at
+    """, (link[0]["id"],))
+    return {"messages": rows}
+
+
+@app.post("/api/messages/{mid}/reply")
+async def reply_message(mid: int, request: Request):
+    body = await request.json()
+    reply = (body.get("reply") or "").strip()
+    if not reply:
+        raise HTTPException(status_code=400, detail="回覆不能空白")
+    query_db("UPDATE vr_customer_messages SET reply = %s, replied_at = NOW() WHERE id = %s",
+             (reply, mid), fetch=False)
+    return {"success": True}
 
 
 @app.get("/api/notifications/messages")
